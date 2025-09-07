@@ -1,4 +1,3 @@
-
 import flet as ft
 from datetime import datetime
 from ..controllers.controllers import ProductoController, VentaController
@@ -48,6 +47,8 @@ class VentaEnterpriseApp:
 
         self.page.add(self.main_column)
         self.update_time_date()
+        # Load initial exchange rate
+        self.update_exchange_rate(None)
 
     def build_navbar(self):
         navbar_bg = ft.Colors.BLUE_600 if not self.dark_mode else ft.Colors.PURPLE_800
@@ -279,6 +280,12 @@ class VentaEnterpriseApp:
             return self.build_dashboard()
 
     def build_dashboard(self):
+        # Obtener datos reales de la base de datos
+        ventas_dia = self.venta_controller.get_ventas_del_dia()
+        productos_vendidos = self.venta_controller.get_productos_vendidos_hoy()
+        clientes_atendidos = self.venta_controller.get_clientes_atendidos_hoy()
+        valor_inventario = self.venta_controller.get_valor_inventario()
+
         return ft.Container(
             content=ft.Column(
                 controls=[
@@ -368,19 +375,19 @@ class VentaEnterpriseApp:
                         content=ft.Row(
                             controls=[
                                 self.create_professional_metric_card(
-                                    "Ventas del Día", "$2,450.00", ft.Colors.GREEN,
+                                    "Ventas del Día", f"${ventas_dia:.2f}", ft.Colors.GREEN,
                                     ft.Icons.TRENDING_UP, "+18%", "vs ayer"
                                 ),
                                 self.create_professional_metric_card(
-                                    "Productos Vendidos", "67", ft.Colors.BLUE,
+                                    "Productos Vendidos", str(productos_vendidos), ft.Colors.BLUE,
                                     ft.Icons.SHOPPING_BAG, "+12%", "esta semana"
                                 ),
                                 self.create_professional_metric_card(
-                                    "Clientes Atendidos", "23", ft.Colors.ORANGE,
-                                    ft.Icons.PEOPLE, "+25%", "este mes"
+                                    "Transacciones del Día", str(clientes_atendidos), ft.Colors.ORANGE,
+                                    ft.Icons.RECEIPT, "+25%", "este mes"
                                 ),
                                 self.create_professional_metric_card(
-                                    "Valor en Inventario", f"${len(self.productos) * 150:.0f}", ft.Colors.PURPLE,
+                                    "Valor en Inventario", f"${valor_inventario:.2f}", ft.Colors.PURPLE,
                                     ft.Icons.INVENTORY, "+5%", "estimado"
                                 ),
                             ],
@@ -416,11 +423,11 @@ class VentaEnterpriseApp:
                                             content=ft.Column(
                                                 controls=[
                                                     ft.Text("Tendencia de Ventas", size=18, weight=ft.FontWeight.BOLD),
-                                                    ft.Container(
-                                                        content=self.create_sales_chart(),
-                                                        height=250,
-                                                        alignment=ft.alignment.center
-                                                    )
+                                ft.Container(
+                                    content=self.create_sales_chart(),
+                                    height=400,
+                                    alignment=ft.alignment.center
+                                )
                                                 ],
                                                 spacing=15
                                             ),
@@ -441,12 +448,7 @@ class VentaEnterpriseApp:
                                                 controls=[
                                                     ft.Text("🏆 Productos Destacados", size=18, weight=ft.FontWeight.BOLD),
                                                     ft.Column(
-                                                        controls=[
-                                                            self.create_top_product_item_pro("Laptop Gaming Pro", "$1,299", "23 ventas", ft.Colors.GOLD),
-                                                            self.create_top_product_item_pro("Mouse Óptico RGB", "$45", "45 ventas", ft.Colors.SILVER),
-                                                            self.create_top_product_item_pro("Teclado Mecánico", "$89", "31 ventas", ft.Colors.BRONZE),
-                                                            self.create_top_product_item_pro("Monitor 4K", "$399", "12 ventas", ft.Colors.BLUE_GREY),
-                                                        ],
+                                                        controls=self.create_top_products_list(),
                                                         spacing=12
                                                     ),
 
@@ -454,11 +456,7 @@ class VentaEnterpriseApp:
 
                                                     ft.Text("📈 Estadísticas Rápidas", size=16, weight=ft.FontWeight.BOLD),
                                                     ft.Column(
-                                                        controls=[
-                                                            self.create_quick_stat("Margen Promedio", "35%", ft.Colors.GREEN),
-                                                            self.create_quick_stat("Tiempo Promedio Venta", "4.2 min", ft.Colors.BLUE),
-                                                            self.create_quick_stat("Satisfacción Cliente", "4.8/5", ft.Colors.ORANGE),
-                                                        ],
+                                                        controls=self.create_quick_stats_list(),
                                                         spacing=8
                                                     )
                                                 ],
@@ -528,36 +526,7 @@ class VentaEnterpriseApp:
                                             ft.DataColumn(ft.Text("Total", weight=ft.FontWeight.BOLD, size=14)),
                                             ft.DataColumn(ft.Text("Estado", weight=ft.FontWeight.BOLD, size=14)),
                                         ],
-                                        rows=[
-                                            ft.DataRow(cells=[
-                                                ft.DataCell(ft.Text("14:32", size=13)),
-                                                ft.DataCell(ft.Text("Carlos Rodríguez", size=13)),
-                                                ft.DataCell(ft.Text("3 items", size=13)),
-                                                ft.DataCell(ft.Text("$285.00", color=ft.Colors.GREEN, weight=ft.FontWeight.BOLD, size=13)),
-                                                ft.DataCell(self.create_status_badge("Completada", ft.Colors.GREEN)),
-                                            ]),
-                                            ft.DataRow(cells=[
-                                                ft.DataCell(ft.Text("13:45", size=13)),
-                                                ft.DataCell(ft.Text("Ana Martínez", size=13)),
-                                                ft.DataCell(ft.Text("2 items", size=13)),
-                                                ft.DataCell(ft.Text("$156.50", color=ft.Colors.GREEN, weight=ft.FontWeight.BOLD, size=13)),
-                                                ft.DataCell(self.create_status_badge("Completada", ft.Colors.GREEN)),
-                                            ]),
-                                            ft.DataRow(cells=[
-                                                ft.DataCell(ft.Text("12:18", size=13)),
-                                                ft.DataCell(ft.Text("Luis García", size=13)),
-                                                ft.DataCell(ft.Text("1 item", size=13)),
-                                                ft.DataCell(ft.Text("$89.99", color=ft.Colors.GREEN, weight=ft.FontWeight.BOLD, size=13)),
-                                                ft.DataCell(self.create_status_badge("Completada", ft.Colors.GREEN)),
-                                            ]),
-                                            ft.DataRow(cells=[
-                                                ft.DataCell(ft.Text("11:52", size=13)),
-                                                ft.DataCell(ft.Text("María López", size=13)),
-                                                ft.DataCell(ft.Text("4 items", size=13)),
-                                                ft.DataCell(ft.Text("$445.75", color=ft.Colors.GREEN, weight=ft.FontWeight.BOLD, size=13)),
-                                                ft.DataCell(self.create_status_badge("Pendiente", ft.Colors.ORANGE)),
-                                            ]),
-                                        ],
+                                        rows=self.create_recent_activity_rows(),
                                         width=1000,
                                         height=300,
                                         border_radius=15,
@@ -583,7 +552,7 @@ class VentaEnterpriseApp:
                 spacing=0,
                 scroll=ft.ScrollMode.AUTO
             ),
-            bgcolor=ft.Colors.BLUE_GREY_50 if not self.dark_mode else ft.Colors.BLUE_GREY_950
+            bgcolor=ft.Colors.BLUE_GREY_50 if not self.dark_mode else ft.Colors.BLUE_GREY_900
         )
 
 
@@ -933,7 +902,7 @@ class VentaEnterpriseApp:
                 ft.DataColumn(ft.Text("Stock")),
             ],
             rows=[],
-            width=800,
+            width=1000,
             height=400,
         )
 
@@ -1005,17 +974,72 @@ class VentaEnterpriseApp:
         )
 
     def build_reportes_view(self):
+        # Obtener datos reales de la base de datos
+        estadisticas = self.venta_controller.get_estadisticas_reportes()
+
+        # Crear métricas dinámicas
+        metricas = []
+
+        if estadisticas['productos_mas_vendidos']:
+            producto_top = estadisticas['productos_mas_vendidos'][0]
+            metricas.append(self.create_metric_card(
+                "Producto Más Vendido",
+                producto_top[0],  # nombre del producto
+                ft.Colors.GREEN,
+                ft.Icons.STAR
+            ))
+        else:
+            metricas.append(self.create_metric_card(
+                "Producto Más Vendido",
+                "Sin datos",
+                ft.Colors.GREY,
+                ft.Icons.STAR
+            ))
+
+        metricas.append(self.create_metric_card(
+            "Total de Ventas",
+            str(estadisticas['total_ventas']),
+            ft.Colors.BLUE,
+            ft.Icons.SHOPPING_CART
+        ))
+
+        metricas.append(self.create_metric_card(
+            "Promedio por Venta",
+            f"${estadisticas['promedio_venta']:.2f}",
+            ft.Colors.PURPLE,
+            ft.Icons.ATTACH_MONEY
+        ))
+
+        # Crear filas de la tabla de análisis
+        table_rows = []
+        if estadisticas['productos_mas_vendidos']:
+            for producto in estadisticas['productos_mas_vendidos']:
+                nombre, cantidad, ingresos = producto
+                # Obtener stock restante del producto
+                producto_info = next((p for p in self.productos if p.nombre == nombre), None)
+                stock_restante = producto_info.stock if producto_info else 0
+
+                table_rows.append(ft.DataRow(cells=[
+                    ft.DataCell(ft.Text(nombre)),
+                    ft.DataCell(ft.Text(str(cantidad))),
+                    ft.DataCell(ft.Text(f"${ingresos:.2f}")),
+                    ft.DataCell(ft.Text(str(stock_restante))),
+                ]))
+        else:
+            table_rows.append(ft.DataRow(cells=[
+                ft.DataCell(ft.Text("No hay datos de ventas", col=4)),
+                ft.DataCell(ft.Text("")),
+                ft.DataCell(ft.Text("")),
+                ft.DataCell(ft.Text("")),
+            ]))
+
         return ft.Column(
             controls=[
                 ft.Text("Reportes Detallados", size=32, weight=ft.FontWeight.BOLD),
                 ft.Divider(height=20),
 
                 ft.Row(
-                    controls=[
-                        self.create_metric_card("Productos Más Vendidos", "Laptop", ft.Colors.GREEN, ft.Icons.STAR),
-                        self.create_metric_card("Clientes Nuevos", "28", ft.Colors.ORANGE, ft.Icons.PEOPLE),
-                        self.create_metric_card("Promedio por Venta", "$89.50", ft.Colors.PURPLE, ft.Icons.ATTACH_MONEY),
-                    ],
+                    controls=metricas,
                     spacing=20
                 ),
 
@@ -1030,20 +1054,7 @@ class VentaEnterpriseApp:
                             ft.DataColumn(ft.Text("Ingresos")),
                             ft.DataColumn(ft.Text("Stock Restante")),
                         ],
-                        rows=[
-                            ft.DataRow(cells=[
-                                ft.DataCell(ft.Text("Producto A")),
-                                ft.DataCell(ft.Text("15")),
-                                ft.DataCell(ft.Text("$450.00")),
-                                ft.DataCell(ft.Text("35")),
-                            ]),
-                            ft.DataRow(cells=[
-                                ft.DataCell(ft.Text("Producto B")),
-                                ft.DataCell(ft.Text("8")),
-                                ft.DataCell(ft.Text("$240.00")),
-                                ft.DataCell(ft.Text("22")),
-                            ])
-                        ],
+                        rows=table_rows,
                         width=800,
                         height=300
                     ),
@@ -1054,75 +1065,6 @@ class VentaEnterpriseApp:
             ],
             spacing=20
         )
-
-
-
-    def build_ventas_tab(self):
-        self.cantidad = ft.TextField(label="Cantidad", value="1")
-        self.add_to_cart_button = ft.ElevatedButton(text="Agregar al Carrito", on_click=self.add_to_cart)
-
-        self.carrito_list = ft.DataTable(
-            columns=[
-                ft.DataColumn(ft.Text("Producto")),
-                ft.DataColumn(ft.Text("Cantidad")),
-                ft.DataColumn(ft.Text("Precio")),
-                ft.DataColumn(ft.Text("Subtotal")),
-            ],
-            rows=[],
-            width=600,
-            height=200,
-        )
-
-        self.total_label = ft.Text("Total: $0.00", size=20, weight=ft.FontWeight.BOLD)
-
-        self.finalizar_venta_button = ft.ElevatedButton(text="Finalizar Venta", on_click=self.finalizar_venta)
-
-        return ft.Column(
-            [
-                ft.Text("Seleccionar Producto:"),
-                self.productos_list_venta(),
-                ft.Row([self.cantidad, self.add_to_cart_button]),
-                self.carrito_list,
-                self.total_label,
-                self.finalizar_venta_button,
-            ]
-        )
-
-    def productos_list_venta(self):
-        self.productos_venta_list = ft.DataTable(
-            columns=[
-                ft.DataColumn(ft.Text("ID")),
-                ft.DataColumn(ft.Text("Nombre")),
-                ft.DataColumn(ft.Text("Precio")),
-                ft.DataColumn(ft.Text("Stock")),
-            ],
-            rows=[],
-            width=600,
-            height=200,
-        )
-        self.load_productos_venta()
-        return self.productos_venta_list
-
-    def load_productos_venta(self):
-        self.productos = self.producto_controller.get_all()
-        self.productos_venta_list.rows.clear()
-        for i, p in enumerate(self.productos):
-            self.productos_venta_list.rows.append(
-                ft.DataRow(
-                    cells=[
-                        ft.DataCell(ft.Text(str(p.id))),
-                        ft.DataCell(ft.Text(p.nombre)),
-                        ft.DataCell(ft.Text(f"{p.precio:.2f}")),
-                        ft.DataCell(ft.Text(str(p.stock))),
-                    ],
-                    on_select_changed=lambda e, idx=i: self.on_row_selected_venta(e, idx)
-                )
-            )
-        self.page.update()
-
-    def on_row_selected_venta(self, e, idx):
-        if e.data == 'true':
-            self.selected_producto_venta = self.productos[idx]
 
     def add_to_cart(self, e):
         if not hasattr(self, 'selected_producto_venta'):
@@ -1250,6 +1192,9 @@ class VentaEnterpriseApp:
         self.page.update()
 
     def create_professional_metric_card(self, title, value, color, icon, trend, subtitle):
+        # Crear color de fondo con opacidad correcta
+        bg_color = self.get_color_with_opacity(color, 0.2)
+
         return ft.Container(
             content=ft.Column(
                 controls=[
@@ -1260,7 +1205,7 @@ class VentaEnterpriseApp:
                                 width=50,
                                 height=50,
                                 alignment=ft.alignment.center,
-                                bgcolor=color + "20",  # Color con 20% de opacidad
+                                bgcolor=bg_color,
                                 border_radius=12
                             ),
                             ft.Container(
@@ -1291,101 +1236,251 @@ class VentaEnterpriseApp:
         )
 
     def create_sales_chart(self):
-        """Create a simple sales chart visualization"""
+        """Create an enhanced sales chart with real data from database"""
+        # Obtener datos reales de ventas de los últimos 7 días
+        datos_ventas = self.venta_controller.get_datos_grafico_ventas(dias=7)
+
+        # Calcular estadísticas
+        total_semana = sum(datos_ventas)
+        promedio_diario = total_semana / len(datos_ventas) if datos_ventas else 0
+        max_venta = max(datos_ventas) if datos_ventas else 0
+        mejor_dia_idx = datos_ventas.index(max_venta) if datos_ventas and max_venta > 0 else 0
+
+        dias_semana = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"]
+        mejor_dia = dias_semana[mejor_dia_idx] if datos_ventas else "N/A"
+
+        # Calcular altura máxima para las barras (normalizar)
+        max_altura = 150
+        max_valor = max(datos_ventas) if datos_ventas else 1
+
+        # Crear barras del gráfico
+        barras = []
+        colores = [ft.Colors.BLUE_500, ft.Colors.BLUE_600, ft.Colors.BLUE_500,
+                  ft.Colors.BLUE_700, ft.Colors.BLUE_600, ft.Colors.BLUE_700, ft.Colors.BLUE_500]
+
+        for i, (dia, valor) in enumerate(zip(dias_semana, datos_ventas)):
+            altura = int((valor / max_valor) * max_altura) if max_valor > 0 else 0
+            barras.append(self.create_enhanced_bar(dia, valor, altura, colores[i]))
+
         return ft.Container(
             content=ft.Column(
                 controls=[
-                    ft.Text("Ventas de los Últimos 7 Días", size=16, weight=ft.FontWeight.BOLD),
+                    # Header with title and summary
+                    ft.Row(
+                        controls=[
+                            ft.Column(
+                                controls=[
+                                    ft.Text("📈 Análisis de Ventas Detallado", size=18, weight=ft.FontWeight.BOLD),
+                                    ft.Text("Tendencia semanal con métricas clave", size=12, color=ft.Colors.BLUE_GREY_600 if not self.dark_mode else ft.Colors.BLUE_GREY_400),
+                                ],
+                                spacing=2,
+                                alignment=ft.MainAxisAlignment.START,
+                                expand=True
+                            ),
+                            ft.Container(
+                                content=ft.Column(
+                                    controls=[
+                                        ft.Text(f"${total_semana:.2f}", size=20, weight=ft.FontWeight.BOLD, color=ft.Colors.GREEN),
+                                        ft.Text("Total Semana", size=10, color=ft.Colors.BLUE_GREY_500),
+                                    ],
+                                    spacing=2,
+                                    alignment=ft.MainAxisAlignment.END
+                                ),
+                                padding=ft.padding.symmetric(horizontal=15, vertical=8),
+                                bgcolor=ft.Colors.GREEN_50 if not self.dark_mode else ft.Colors.GREEN_900,
+                                border_radius=10
+                            )
+                        ],
+                        alignment=ft.MainAxisAlignment.SPACE_BETWEEN
+                    ),
+                    ft.Divider(height=15),
+                    # Enhanced chart with multiple metrics
                     ft.Container(
-                        content=ft.Row(
+                        content=ft.Column(
                             controls=[
-                                # Simple bar chart representation
+                                # Sales bars with values
                                 ft.Container(
-                                    content=ft.Column(
-                                        controls=[
-                                            ft.Container(height=80, width=20, bgcolor=ft.Colors.BLUE_400, border_radius=4),
-                                            ft.Text("Lun", size=10)
-                                        ],
-                                        spacing=5,
-                                        alignment=ft.MainAxisAlignment.END
-                                    )
+                                    content=ft.Row(
+                                        controls=barras,
+                                        spacing=12,
+                                        alignment=ft.MainAxisAlignment.CENTER
+                                    ),
+                                    height=200,
+                                    alignment=ft.alignment.center
                                 ),
+                                # Trend indicators
                                 ft.Container(
-                                    content=ft.Column(
+                                    content=ft.Row(
                                         controls=[
-                                            ft.Container(height=120, width=20, bgcolor=ft.Colors.BLUE_500, border_radius=4),
-                                            ft.Text("Mar", size=10)
+                                            ft.Container(
+                                                content=ft.Row(
+                                                    controls=[
+                                                        ft.Icon(ft.Icons.TRENDING_UP, size=16, color=ft.Colors.GREEN),
+                                                        ft.Text("+18.5%", size=12, weight=ft.FontWeight.BOLD, color=ft.Colors.GREEN),
+                                                        ft.Text("vs semana anterior", size=10, color=ft.Colors.BLUE_GREY_600 if not self.dark_mode else ft.Colors.BLUE_GREY_400),
+                                                    ],
+                                                    spacing=5,
+                                                    alignment=ft.MainAxisAlignment.START
+                                                ),
+                                                padding=ft.padding.symmetric(horizontal=10, vertical=6),
+                                                bgcolor=ft.Colors.GREEN_50 if not self.dark_mode else ft.Colors.GREEN_900,
+                                                border_radius=15
+                                            ),
+                                            ft.Container(
+                                                content=ft.Row(
+                                                    controls=[
+                                                        ft.Icon(ft.Icons.STAR, size=16, color=ft.Colors.ORANGE),
+                                                        ft.Text(f"{mejor_dia} pico", size=12, weight=ft.FontWeight.BOLD, color=ft.Colors.ORANGE),
+                                                        ft.Text(f"${max_venta:.2f}", size=10, color=ft.Colors.BLUE_GREY_600 if not self.dark_mode else ft.Colors.BLUE_GREY_400),
+                                                    ],
+                                                    spacing=5,
+                                                    alignment=ft.MainAxisAlignment.START
+                                                ),
+                                                padding=ft.padding.symmetric(horizontal=10, vertical=6),
+                                                bgcolor=ft.Colors.ORANGE_50 if not self.dark_mode else ft.Colors.ORANGE_900,
+                                                border_radius=15
+                                            ),
                                         ],
-                                        spacing=5,
-                                        alignment=ft.MainAxisAlignment.END
-                                    )
+                                        spacing=10,
+                                        alignment=ft.MainAxisAlignment.CENTER
+                                    ),
+                                    padding=ft.padding.symmetric(vertical=10)
                                 ),
+                                # Additional metrics row
                                 ft.Container(
-                                    content=ft.Column(
+                                    content=ft.Row(
                                         controls=[
-                                            ft.Container(height=90, width=20, bgcolor=ft.Colors.BLUE_400, border_radius=4),
-                                            ft.Text("Mié", size=10)
+                                            self.create_mini_metric("Promedio Diario", f"${promedio_diario:.2f}", ft.Colors.BLUE),
+                                            self.create_mini_metric("Mejor Día", mejor_dia, ft.Colors.GREEN),
+                                            self.create_mini_metric("Transacciones", str(sum(1 for v in datos_ventas if v > 0)), ft.Colors.PURPLE),
                                         ],
-                                        spacing=5,
-                                        alignment=ft.MainAxisAlignment.END
-                                    )
-                                ),
-                                ft.Container(
-                                    content=ft.Column(
-                                        controls=[
-                                            ft.Container(height=150, width=20, bgcolor=ft.Colors.BLUE_600, border_radius=4),
-                                            ft.Text("Jue", size=10)
-                                        ],
-                                        spacing=5,
-                                        alignment=ft.MainAxisAlignment.END
-                                    )
-                                ),
-                                ft.Container(
-                                    content=ft.Column(
-                                        controls=[
-                                            ft.Container(height=110, width=20, bgcolor=ft.Colors.BLUE_500, border_radius=4),
-                                            ft.Text("Vie", size=10)
-                                        ],
-                                        spacing=5,
-                                        alignment=ft.MainAxisAlignment.END
-                                    )
-                                ),
-                                ft.Container(
-                                    content=ft.Column(
-                                        controls=[
-                                            ft.Container(height=140, width=20, bgcolor=ft.Colors.BLUE_600, border_radius=4),
-                                            ft.Text("Sáb", size=10)
-                                        ],
-                                        spacing=5,
-                                        alignment=ft.MainAxisAlignment.END
-                                    )
-                                ),
-                                ft.Container(
-                                    content=ft.Column(
-                                        controls=[
-                                            ft.Container(height=100, width=20, bgcolor=ft.Colors.BLUE_400, border_radius=4),
-                                            ft.Text("Dom", size=10)
-                                        ],
-                                        spacing=5,
-                                        alignment=ft.MainAxisAlignment.END
-                                    )
-                                ),
+                                        spacing=15,
+                                        alignment=ft.MainAxisAlignment.SPACE_AROUND
+                                    ),
+                                    padding=ft.padding.symmetric(vertical=10)
+                                )
                             ],
-                            spacing=15,
-                            alignment=ft.MainAxisAlignment.CENTER
+                            spacing=15
                         ),
-                        height=180,
+                        height=280,
                         alignment=ft.alignment.center
                     )
                 ],
                 spacing=15
             ),
-            bgcolor=ft.Colors.BLUE_GREY_50 if not self.dark_mode else ft.Colors.BLUE_GREY_800,
+            bgcolor=ft.Colors.WHITE if not self.dark_mode else ft.Colors.BLUE_GREY_900,
             border_radius=15,
             padding=ft.padding.all(20)
         )
 
+    def create_enhanced_bar(self, day, amount, height, color):
+        """Create an enhanced bar with value display"""
+        return ft.Container(
+            content=ft.Column(
+                controls=[
+                    # Value display above bar
+                    ft.Container(
+                        content=ft.Text(f"${amount}", size=10, weight=ft.FontWeight.BOLD, color=color),
+                        height=20,
+                        alignment=ft.alignment.center
+                    ),
+                    # The bar itself
+                    ft.Container(
+                        content=ft.Column(
+                            controls=[
+                                ft.Container(
+                                    height=height,
+                                    width=25,
+                                    bgcolor=color,
+                                    border_radius=ft.border_radius.only(top_left=4, top_right=4),
+                                    shadow=ft.BoxShadow(
+                                        spread_radius=1,
+                                        blur_radius=4,
+                                        color=ft.Colors.BLUE_200
+                                    )
+                                ),
+                                # Base of the bar
+                                ft.Container(
+                                    height=5,
+                                    width=35,
+                                    bgcolor=ft.Colors.BLUE_300,
+                                    border_radius=ft.border_radius.only(bottom_left=6, bottom_right=6)
+                                )
+                            ],
+                            spacing=0,
+                            alignment=ft.MainAxisAlignment.END
+                        ),
+                        height=height + 5,
+                        alignment=ft.alignment.bottom_center
+                    ),
+                    # Day label
+                    ft.Container(
+                        content=ft.Text(day, size=11, weight=ft.FontWeight.BOLD, color=ft.Colors.BLUE_GREY_700 if not self.dark_mode else ft.Colors.BLUE_GREY_300),
+                        height=25,
+                        alignment=ft.alignment.center
+                    )
+                ],
+                spacing=2,
+                alignment=ft.MainAxisAlignment.END
+            ),
+            height=height + 50,
+            alignment=ft.alignment.bottom_center
+        )
+
+    def create_mini_metric(self, label, value, color):
+        """Create a mini metric display"""
+        return ft.Container(
+            content=ft.Column(
+                controls=[
+                    ft.Text(label, size=11, color=ft.Colors.BLUE_GREY_600 if not self.dark_mode else ft.Colors.BLUE_GREY_400),
+                    ft.Text(value, size=16, weight=ft.FontWeight.BOLD, color=color),
+                ],
+                spacing=3,
+                alignment=ft.MainAxisAlignment.CENTER,
+                horizontal_alignment=ft.CrossAxisAlignment.CENTER
+            ),
+            padding=ft.padding.symmetric(horizontal=12, vertical=8),
+            bgcolor=ft.Colors.BLUE_GREY_50 if not self.dark_mode else ft.Colors.BLUE_GREY_800,
+            border_radius=12,
+            width=100
+        )
+
+    def create_top_products_list(self):
+        """Create a list of top products from database"""
+        try:
+            # Obtener productos más vendidos de la base de datos
+            top_products = self.venta_controller.get_productos_mas_vendidos(limit=4)
+
+            if not top_products:
+                return [
+                    ft.Text("No hay datos de ventas disponibles", size=14, color=ft.Colors.GREY)
+                ]
+
+            product_items = []
+            medal_colors = [ft.Colors.YELLOW, ft.Colors.GREY, ft.Colors.ORANGE, ft.Colors.BLUE_GREY]
+
+            for i, product in enumerate(top_products):
+                medal_color = medal_colors[i] if i < len(medal_colors) else ft.Colors.BLUE_GREY
+                item = self.create_top_product_item_pro(
+                    product['nombre'],
+                    f"${product['precio']:.2f}",
+                    f"{product['ventas']} ventas",
+                    medal_color
+                )
+                product_items.append(item)
+
+            return product_items
+
+        except Exception as e:
+            print(f"Error al obtener productos destacados: {e}")
+            return [
+                ft.Text("Error al cargar productos destacados", size=14, color=ft.Colors.RED)
+            ]
+
     def create_top_product_item_pro(self, name, price, sales, medal_color):
+        # Crear color de fondo con opacidad correcta
+        bg_color = self.get_color_with_opacity(medal_color, 0.2)
+
         return ft.Container(
             content=ft.Row(
                 controls=[
@@ -1394,7 +1489,7 @@ class VentaEnterpriseApp:
                         width=40,
                         height=40,
                         alignment=ft.alignment.center,
-                        bgcolor=medal_color + "20",
+                        bgcolor=bg_color,
                         border_radius=20
                     ),
                     ft.Column(
@@ -1426,6 +1521,25 @@ class VentaEnterpriseApp:
             )
         )
 
+    def create_quick_stats_list(self):
+        """Create a list of quick statistics"""
+        try:
+            # Get some basic statistics
+            ventas_dia = self.venta_controller.get_ventas_del_dia()
+            productos_vendidos = self.venta_controller.get_productos_vendidos_hoy()
+            clientes_atendidos = self.venta_controller.get_clientes_atendidos_hoy()
+
+            return [
+                self.create_quick_stat("Ventas Hoy", f"${ventas_dia:.2f}", ft.Colors.GREEN),
+                self.create_quick_stat("Productos Vendidos", str(productos_vendidos), ft.Colors.BLUE),
+                self.create_quick_stat("Transacciones Hoy", str(clientes_atendidos), ft.Colors.ORANGE),
+            ]
+        except Exception as e:
+            print(f"Error al obtener estadísticas rápidas: {e}")
+            return [
+                self.create_quick_stat("Error", "No disponible", ft.Colors.RED),
+            ]
+
     def create_quick_stat(self, label, value, color):
         return ft.Container(
             content=ft.Row(
@@ -1446,6 +1560,117 @@ class VentaEnterpriseApp:
             padding=ft.padding.symmetric(horizontal=10, vertical=5),
             bgcolor=color,
             border_radius=12
+        )
+
+    def create_recent_activity_rows(self):
+        """Create recent activity rows from database"""
+        try:
+            # Obtener ventas recientes de la base de datos
+            ventas_recientes = self.venta_controller.get_ventas_recientes(limit=4)
+
+            if not ventas_recientes:
+                return [
+                    ft.DataRow(cells=[
+                        ft.DataCell(ft.Text("--:--", size=13)),
+                        ft.DataCell(ft.Text("Sin ventas recientes", size=13)),
+                        ft.DataCell(ft.Text("0 items", size=13)),
+                        ft.DataCell(ft.Text("$0.00", color=ft.Colors.GREY, weight=ft.FontWeight.BOLD, size=13)),
+                        ft.DataCell(self.create_status_badge("Sin datos", ft.Colors.GREY)),
+                    ])
+                ]
+
+            rows = []
+            for venta in ventas_recientes:
+                # Formatear la hora
+                hora = venta['fecha'].strftime("%H:%M") if hasattr(venta['fecha'], 'strftime') else str(venta['fecha'])
+
+                # Obtener información del cliente (usando un nombre genérico si no hay cliente específico)
+                cliente = venta.get('cliente', 'Cliente Anónimo')
+
+                # Calcular cantidad total de productos
+                cantidad_total = sum(detalle['cantidad'] for detalle in venta.get('detalles', []))
+
+                # Estado de la venta
+                estado = "Completada"
+                estado_color = ft.Colors.GREEN
+
+                row = ft.DataRow(cells=[
+                    ft.DataCell(ft.Text(hora, size=13)),
+                    ft.DataCell(ft.Text(cliente, size=13)),
+                    ft.DataCell(ft.Text(f"{cantidad_total} items", size=13)),
+                    ft.DataCell(ft.Text(f"${venta['total']:.2f}", color=ft.Colors.GREEN, weight=ft.FontWeight.BOLD, size=13)),
+                    ft.DataCell(self.create_status_badge(estado, estado_color)),
+                ])
+                rows.append(row)
+
+            return rows
+
+        except Exception as e:
+            print(f"Error al obtener actividad reciente: {e}")
+            return [
+                ft.DataRow(cells=[
+                    ft.DataCell(ft.Text("--:--", size=13)),
+                    ft.DataCell(ft.Text("Error al cargar", size=13)),
+                    ft.DataCell(ft.Text("0 items", size=13)),
+                    ft.DataCell(ft.Text("$0.00", color=ft.Colors.RED, weight=ft.FontWeight.BOLD, size=13)),
+                    ft.DataCell(self.create_status_badge("Error", ft.Colors.RED)),
+                ])
+            ]
+
+    def get_color_with_opacity(self, color, opacity):
+        """Convertir un color de Flet a uno con opacidad"""
+        # Extraer componentes RGB del color
+        if color == ft.Colors.GREEN:
+            return ft.Colors.GREEN_200
+        elif color == ft.Colors.BLUE:
+            return ft.Colors.BLUE_200
+        elif color == ft.Colors.ORANGE:
+            return ft.Colors.ORANGE_200
+        elif color == ft.Colors.PURPLE:
+            return ft.Colors.PURPLE_200
+        elif color == ft.Colors.RED:
+            return ft.Colors.RED_200
+        elif color == ft.Colors.YELLOW:
+            return ft.Colors.YELLOW_200
+        elif color == ft.Colors.GREY:
+            return ft.Colors.GREY_300
+        elif color == ft.Colors.BLUE_GREY:
+            return ft.Colors.BLUE_GREY_300
+        else:
+            return ft.Colors.BLUE_GREY_200  # Color por defecto
+
+    def create_metric_card(self, title, value, color, icon):
+        # Crear color de fondo con opacidad correcta
+        bg_color = self.get_color_with_opacity(color, 0.2)
+
+        return ft.Container(
+            content=ft.Column(
+                controls=[
+                    ft.Container(
+                        content=ft.Icon(icon, size=40, color=color),
+                        width=60,
+                        height=60,
+                        alignment=ft.alignment.center,
+                        bgcolor=bg_color,
+                        border_radius=15
+                    ),
+                    ft.Text(title, size=16, weight=ft.FontWeight.BOLD, text_align=ft.TextAlign.CENTER),
+                    ft.Text(value, size=28, weight=ft.FontWeight.BOLD, color=color, text_align=ft.TextAlign.CENTER),
+                ],
+                spacing=12,
+                alignment=ft.MainAxisAlignment.CENTER,
+                horizontal_alignment=ft.CrossAxisAlignment.CENTER
+            ),
+            width=320,
+            height=160,
+            padding=ft.padding.all(20),
+            bgcolor=ft.Colors.WHITE if not self.dark_mode else ft.Colors.BLUE_GREY_900,
+            border_radius=20,
+            shadow=ft.BoxShadow(
+                spread_radius=2,
+                blur_radius=12,
+                color=ft.Colors.BLACK12 if not self.dark_mode else ft.Colors.BLACK26
+            )
         )
 
 
