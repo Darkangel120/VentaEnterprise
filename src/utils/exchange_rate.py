@@ -24,9 +24,19 @@ class ExchangeRateService:
                 self.last_update = datetime.now()
                 self._save_cache()
                 return rate
+            else:
+                # Si no se pudo obtener de API, intentar usar cache anterior si existe
+                if self._load_cache():
+                    return self.rate
 
         except Exception as e:
             print(f"Error obteniendo tasa de cambio: {e}")
+            # Intentar usar cache como fallback
+            try:
+                if self._load_cache():
+                    return self.rate
+            except:
+                pass
 
         return None
 

@@ -15,10 +15,15 @@ class VentaEnterpriseApp:
         self.current_view = "dashboard"
         self.dark_mode = self.page.client_storage.get("dark_mode") or False
         self.sidebar_expanded = False
+        self.exchange_rate = 1.0  # Default exchange rate
+        self.selected_producto_venta = None
 
         # Theme setup
         self.page.theme_mode = ft.ThemeMode.DARK if self.dark_mode else ft.ThemeMode.LIGHT
         self.page.update()
+
+        # Load initial data
+        self.load_productos()
 
         self.build_ui()
 
@@ -272,6 +277,8 @@ class VentaEnterpriseApp:
             return self.build_ventas_view()
         elif self.current_view == "productos":
             return self.build_productos_view()
+        elif self.current_view == "catalogo":
+            return self.build_catalogo_view()
         elif self.current_view == "factura":
             return self.build_factura_view()
         elif self.current_view == "reportes":
@@ -601,34 +608,46 @@ class VentaEnterpriseApp:
             )
             product_cards.append(card)
 
-        return ft.GridView(
-            controls=product_cards,
-            runs_count=4,
-            max_extent=200,
-            child_aspect_ratio=1.0,
-            spacing=15,
-            run_spacing=15,
-            padding=10
+        return ft.Container(
+            content=ft.GridView(
+                controls=product_cards,
+                runs_count=4,
+                max_extent=200,
+                child_aspect_ratio=1.0,
+                spacing=15,
+                run_spacing=15,
+                padding=10
+            ),
+            height=600,  # Altura fija para el scroll
         )
 
     def select_product_for_sale(self, e, idx):
         """Handle product selection for sale"""
         self.selected_producto_venta = self.productos[idx]
+
         # Update the selected product display in the ventas view
-        if hasattr(self, 'productos_container'):
-            # Find the product selection container and update the text
-            selection_container = self.productos_container.content.controls[0]  # The main container
-            if len(selection_container.content.controls) > 1:
-                product_display = selection_container.content.controls[1].content.controls[0]  # The row with product display
-                product_display.controls[0].content.value = f"Producto seleccionado: {self.selected_producto_venta.nombre}"
-                self.page.update()
+        if hasattr(self, 'producto_seleccionado_text'):
+            self.producto_seleccionado_text.value = f"Producto seleccionado: {self.selected_producto_venta.nombre}"
+
+        # Enable quantity field since we have a selected product
+        if hasattr(self, 'cantidad'):
+            self.cantidad.disabled = False
+            self.cantidad.value = "1"  # Reset to default quantity
+
+        # Automatically return to ventas view
+        self.change_view("ventas")
 
     def change_view(self, view_name):
         self.current_view = view_name
         # Validate view name, default to dashboard if invalid
-        valid_views = ["dashboard", "ventas", "productos", "factura", "reportes"]
+        valid_views = ["dashboard", "ventas", "productos", "factura", "reportes", "catalogo"]
         if self.current_view not in valid_views:
             self.current_view = "dashboard"
+
+        # Reload products when switching to products or catalog view
+        if view_name == "productos" or view_name == "catalogo":
+            self.load_productos()
+
         self.main_column.controls[1].controls[2].content = self.build_main_content()
         self.page.update()
 
@@ -663,21 +682,46 @@ class VentaEnterpriseApp:
         try:
             exchange_service = ExchangeRateService()
             rate = exchange_service.get_dollar_rate()
-            if rate:
+            if rate and rate > 0:
+                self.exchange_rate = rate  # Store the rate in instance variable
                 # Update navbar exchange rate display
                 navbar = self.main_column.controls[0]
                 rate_container = navbar.content.controls[1]  # Exchange rate container (now at position 1)
-                rate_container.content.controls[1].value = f"{rate:.2f}"
+                rate_container.content.controls[0].controls[1].value = f"1$ = {rate:.2f} BS"
                 self.page.update()
             else:
-                raise Exception("No se pudo obtener la tasa de cambio")
+                # Si no se pudo obtener la tasa, mostrar mensaje informativo
+                navbar = self.main_column.controls[0]
+                rate_container = navbar.content.controls[1]  # Exchange rate container (now at position 1)
+                rate_container.content.controls[0].controls[1].value = "N/A"
+                self.page.update()
+
+                # Mostrar diálogo informativo en lugar de error
+                self.page.snack_bar = ft.SnackBar(
+                    content=ft.Text("No se pudo obtener la tasa de cambio. Se usará la última tasa disponible o 1.0 por defecto."),
+                    bgcolor=ft.Colors.ORANGE_600,
+                    duration=4000
+                )
+                self.page.snack_bar.open = True
+                self.page.update()
+
+                # Usar tasa por defecto si no hay ninguna disponible
+                if not self.exchange_rate or self.exchange_rate <= 0:
+                    self.exchange_rate = 1.0
+
         except Exception as ex:
-            self.page.dialog = ft.AlertDialog(
-                title=ft.Text("Error"),
-                content=ft.Text(f"No se pudo actualizar la tasa de cambio: {str(ex)}"),
-                actions=[ft.TextButton("Cerrar", on_click=lambda e: self.page.dialog.close())]
+            print(f"Error actualizando tasa de cambio: {str(ex)}")
+            # En caso de error, usar tasa por defecto
+            if not self.exchange_rate or self.exchange_rate <= 0:
+                self.exchange_rate = 1.0
+
+            # Mostrar mensaje de error
+            self.page.snack_bar = ft.SnackBar(
+                content=ft.Text("Error al actualizar la tasa de cambio. Usando valor por defecto."),
+                bgcolor=ft.Colors.RED_600,
+                duration=3000
             )
-            self.page.dialog.open = True
+            self.page.snack_bar.open = True
             self.page.update()
 
     def toggle_sidebar(self, e):
@@ -695,11 +739,12 @@ class VentaEnterpriseApp:
             border_radius=10,
             bgcolor=ft.Colors.WHITE if not self.dark_mode else ft.Colors.BLUE_GREY_800
         )
+        self.cantidad.disabled = self.selected_producto_venta is None
 
-        self.add_to_cart_button = ft.ElevatedButton(
-            "Agregar al Carrito",
-            on_click=self.add_to_cart,
-            icon=ft.Icons.ADD_SHOPPING_CART,
+        self.seleccionar_button = ft.ElevatedButton(
+            "Seleccionar",
+            on_click=lambda e: self.change_view("catalogo"),
+            icon=ft.Icons.LIST,
             style=ft.ButtonStyle(
                 bgcolor=ft.Colors.BLUE_600,
                 color=ft.Colors.WHITE,
@@ -707,45 +752,35 @@ class VentaEnterpriseApp:
             )
         )
 
-        # Enhanced product selection with cards
-        self.productos_container = ft.Container(
-            content=ft.Column(
-                controls=[
-                    ft.Text("Catálogo de Productos", size=20, weight=ft.FontWeight.BOLD),
-                    ft.Container(
-                        content=self.create_productos_grid(),
-                        height=300,
-                        padding=10,
-                        bgcolor=ft.Colors.BLUE_GREY_50 if not self.dark_mode else ft.Colors.BLUE_GREY_900,
-                        border_radius=15
-                    )
-                ],
-                spacing=15
-            ),
-            padding=20,
-            bgcolor=ft.Colors.WHITE if not self.dark_mode else ft.Colors.BLUE_GREY_900,
-            border_radius=15,
-            shadow=ft.BoxShadow(
-                spread_radius=1,
-                blur_radius=8,
-                color=ft.Colors.BLACK12 if not self.dark_mode else ft.Colors.BLACK26
+        self.aceptar_button = ft.ElevatedButton(
+            "Aceptar",
+            on_click=self.add_to_cart,
+            icon=ft.Icons.CHECK,
+            style=ft.ButtonStyle(
+                bgcolor=ft.Colors.GREEN_600,
+                color=ft.Colors.WHITE,
+                padding=ft.padding.symmetric(horizontal=20, vertical=12)
             )
         )
+
+        # Product selection will use catalog view instead of modal
 
         # Enhanced cart display
         self.carrito_list = ft.DataTable(
             columns=[
                 ft.DataColumn(ft.Text("Producto", weight=ft.FontWeight.BOLD)),
                 ft.DataColumn(ft.Text("Cantidad", weight=ft.FontWeight.BOLD)),
-                ft.DataColumn(ft.Text("Precio", weight=ft.FontWeight.BOLD)),
+                ft.DataColumn(ft.Text("Precio USD", weight=ft.FontWeight.BOLD)),
+                ft.DataColumn(ft.Text("Precio VES", weight=ft.FontWeight.BOLD)),
                 ft.DataColumn(ft.Text("Subtotal", weight=ft.FontWeight.BOLD)),
             ],
             rows=[],
             width=900,
-            height=250,
+            height=300,  # Aumentado para mejor visualización
             border_radius=10,
             heading_row_height=50,
-        data_row_min_height=45
+            data_row_min_height=45,
+            data_row_max_height=60,
         )
 
         self.total_label = ft.Container(
@@ -765,6 +800,10 @@ class VentaEnterpriseApp:
                 padding=ft.padding.symmetric(horizontal=30, vertical=15)
             )
         )
+
+        # Container for selected product display
+        self.producto_seleccionado_text = ft.Text("Producto seleccionado: Ninguno", size=14)
+        self.productos_container = ft.Container()  # Will hold the modal or product list when opened
 
         return ft.Column(
             controls=[
@@ -789,14 +828,15 @@ class VentaEnterpriseApp:
                                 content=ft.Row(
                                     controls=[
                                         ft.Container(
-                                            content=ft.Text("Producto seleccionado: Ninguno", size=14),
+                                            content=self.producto_seleccionado_text,
                                             padding=ft.padding.symmetric(horizontal=15, vertical=8),
                                             bgcolor=ft.Colors.BLUE_GREY_100 if not self.dark_mode else ft.Colors.BLUE_GREY_800,
                                             border_radius=10,
                                             expand=True
                                         ),
                                         self.cantidad,
-                                        self.add_to_cart_button
+                                        self.seleccionar_button,
+                                        self.aceptar_button
                                     ],
                                     spacing=15,
                                     alignment=ft.MainAxisAlignment.START
@@ -816,9 +856,6 @@ class VentaEnterpriseApp:
                     )
                 ),
 
-                # Products Grid
-                self.productos_container,
-
                 # Cart Section
                 ft.Container(
                     content=ft.Column(
@@ -827,7 +864,7 @@ class VentaEnterpriseApp:
                                 controls=[
                                     ft.Text("🛒 Carrito de Compras", size=24, weight=ft.FontWeight.BOLD),
                                     ft.Container(
-                                        content=ft.Text("0 items", size=14, color=ft.Colors.BLUE_GREY_600),
+                                        content=ft.Text(f"{len(self.carrito)} items", size=14, color=ft.Colors.BLUE_GREY_600),
                                         padding=ft.padding.symmetric(horizontal=10, vertical=5),
                                         bgcolor=ft.Colors.BLUE_GREY_100 if not self.dark_mode else ft.Colors.BLUE_GREY_800,
                                         border_radius=15
@@ -896,14 +933,19 @@ class VentaEnterpriseApp:
 
         self.productos_list = ft.DataTable(
             columns=[
-                ft.DataColumn(ft.Text("ID")),
-                ft.DataColumn(ft.Text("Nombre")),
-                ft.DataColumn(ft.Text("Precio")),
-                ft.DataColumn(ft.Text("Stock")),
+                ft.DataColumn(ft.Text("ID", weight=ft.FontWeight.BOLD)),
+                ft.DataColumn(ft.Text("Nombre", weight=ft.FontWeight.BOLD)),
+                ft.DataColumn(ft.Text("Precio", weight=ft.FontWeight.BOLD)),
+                ft.DataColumn(ft.Text("Stock", weight=ft.FontWeight.BOLD)),
             ],
             rows=[],
             width=1000,
-            height=400,
+            height=500,  # Aumentado para mejor visualización con muchos productos
+            border_radius=10,
+            heading_row_height=50,
+            data_row_min_height=45,
+            data_row_max_height=60,
+            heading_row_color=ft.Colors.BLUE_GREY_50 if not self.dark_mode else ft.Colors.BLUE_GREY_800
         )
 
         return ft.Column(
@@ -936,6 +978,32 @@ class VentaEnterpriseApp:
                 ft.Text("Lista de Productos", size=24, weight=ft.FontWeight.BOLD),
                 ft.Container(
                     content=self.productos_list,
+                    padding=20,
+                    bgcolor=ft.Colors.BLUE_GREY_50 if not self.dark_mode else ft.Colors.BLUE_GREY_900,
+                    border_radius=10
+                )
+            ],
+            spacing=20
+        )
+
+    def build_catalogo_view(self):
+        return ft.Column(
+            controls=[
+                ft.Text("Catálogo de Productos", size=32, weight=ft.FontWeight.BOLD),
+                ft.Divider(height=20),
+
+                ft.Container(
+                    content=ft.Column(
+                        controls=[
+                            ft.Text("Productos Disponibles", size=24, weight=ft.FontWeight.BOLD),
+                            ft.Container(
+                                content=self.create_productos_grid(),
+                                height=600,
+                                alignment=ft.alignment.center
+                            )
+                        ],
+                        spacing=20
+                    ),
                     padding=20,
                     bgcolor=ft.Colors.BLUE_GREY_50 if not self.dark_mode else ft.Colors.BLUE_GREY_900,
                     border_radius=10
@@ -977,7 +1045,7 @@ class VentaEnterpriseApp:
         # Obtener datos reales de la base de datos
         estadisticas = self.venta_controller.get_estadisticas_reportes()
 
-        # Crear métricas dinámicas
+        # Crear métricas dinámicas mejoradas
         metricas = []
 
         if estadisticas['productos_mas_vendidos']:
@@ -1010,7 +1078,11 @@ class VentaEnterpriseApp:
             ft.Icons.ATTACH_MONEY
         ))
 
-        # Crear filas de la tabla de análisis
+        # Calcular totales para porcentajes
+        total_ventas = sum(cantidad for _, cantidad, _ in estadisticas['productos_mas_vendidos']) if estadisticas['productos_mas_vendidos'] else 0
+        total_ingresos = sum(ingresos for _, _, ingresos in estadisticas['productos_mas_vendidos']) if estadisticas['productos_mas_vendidos'] else 0
+
+        # Crear filas de la tabla de análisis mejorada
         table_rows = []
         if estadisticas['productos_mas_vendidos']:
             for producto in estadisticas['productos_mas_vendidos']:
@@ -1018,52 +1090,245 @@ class VentaEnterpriseApp:
                 # Obtener stock restante del producto
                 producto_info = next((p for p in self.productos if p.nombre == nombre), None)
                 stock_restante = producto_info.stock if producto_info else 0
+                precio_promedio = ingresos / cantidad if cantidad > 0 else 0
+
+                # Calcular porcentajes
+                porcentaje_ventas = (cantidad / total_ventas * 100) if total_ventas > 0 else 0
+                porcentaje_ingresos = (ingresos / total_ingresos * 100) if total_ingresos > 0 else 0
+
+                # Determinar tendencia (simulada - en producción usar datos históricos)
+                tendencia = "↗️" if porcentaje_ventas > 15 else "➡️" if porcentaje_ventas > 5 else "↘️"
+                tendencia_color = ft.Colors.GREEN if porcentaje_ventas > 15 else ft.Colors.ORANGE if porcentaje_ventas > 5 else ft.Colors.RED
 
                 table_rows.append(ft.DataRow(cells=[
-                    ft.DataCell(ft.Text(nombre)),
-                    ft.DataCell(ft.Text(str(cantidad))),
-                    ft.DataCell(ft.Text(f"${ingresos:.2f}")),
-                    ft.DataCell(ft.Text(str(stock_restante))),
+                    ft.DataCell(ft.Row([
+                        ft.Icon(ft.Icons.INVENTORY, size=16, color=ft.Colors.BLUE),
+                        ft.Text(nombre, weight=ft.FontWeight.BOLD)
+                    ], spacing=8)),
+                    ft.DataCell(ft.Column([
+                        ft.Text(str(cantidad), weight=ft.FontWeight.BOLD, size=14),
+                        ft.Text(f"{porcentaje_ventas:.1f}%", size=10, color=ft.Colors.BLUE_GREY_600)
+                    ], spacing=2, alignment=ft.MainAxisAlignment.CENTER)),
+                    ft.DataCell(ft.Column([
+                        ft.Text(f"${ingresos:.2f}", weight=ft.FontWeight.BOLD, size=14, color=ft.Colors.GREEN),
+                        ft.Text(f"{porcentaje_ingresos:.1f}%", size=10, color=ft.Colors.BLUE_GREY_600)
+                    ], spacing=2, alignment=ft.MainAxisAlignment.CENTER)),
+                    ft.DataCell(ft.Text(f"${precio_promedio:.2f}", size=14, color=ft.Colors.PURPLE)),
+                    ft.DataCell(ft.Container(
+                        content=ft.Text(tendencia, size=16),
+                        alignment=ft.alignment.center,
+                        bgcolor=self.get_color_with_opacity(tendencia_color, 0.2),
+                        padding=ft.padding.all(8),
+                        border_radius=8
+                    )),
+                    ft.DataCell(ft.Container(
+                        content=ft.Text(str(stock_restante), size=14,
+                                      color=ft.Colors.RED if stock_restante < 10 else ft.Colors.GREEN if stock_restante > 50 else ft.Colors.ORANGE),
+                        alignment=ft.alignment.center,
+                        bgcolor=ft.Colors.RED_50 if stock_restante < 10 else ft.Colors.GREEN_50 if stock_restante > 50 else ft.Colors.ORANGE_50,
+                        padding=ft.padding.symmetric(horizontal=12, vertical=6),
+                        border_radius=12
+                    )),
                 ]))
         else:
             table_rows.append(ft.DataRow(cells=[
-                ft.DataCell(ft.Text("No hay datos de ventas", col=4)),
+                ft.DataCell(ft.Text("No hay datos de ventas disponibles", col=6)),
+                ft.DataCell(ft.Text("")),
+                ft.DataCell(ft.Text("")),
                 ft.DataCell(ft.Text("")),
                 ft.DataCell(ft.Text("")),
                 ft.DataCell(ft.Text("")),
             ]))
 
+        # Agregar fila de resumen
+        if estadisticas['productos_mas_vendidos']:
+            table_rows.append(ft.DataRow(cells=[
+                ft.DataCell(ft.Row([
+                    ft.Icon(ft.Icons.ANALYTICS, size=16, color=ft.Colors.ORANGE),
+                    ft.Text("TOTAL", weight=ft.FontWeight.BOLD, color=ft.Colors.ORANGE)
+                ], spacing=8)),
+                ft.DataCell(ft.Text(str(total_ventas), weight=ft.FontWeight.BOLD, size=16, color=ft.Colors.BLUE)),
+                ft.DataCell(ft.Text(f"${total_ingresos:.2f}", weight=ft.FontWeight.BOLD, size=16, color=ft.Colors.GREEN)),
+                ft.DataCell(ft.Text("—", size=14, color=ft.Colors.GREY)),
+                ft.DataCell(ft.Text("📊", size=16)),
+                ft.DataCell(ft.Text("—", size=14, color=ft.Colors.GREY)),
+            ]))
+
+        # Controles de filtro y ordenamiento
+        filter_controls = ft.Container(
+            content=ft.Row(
+                controls=[
+                    ft.Text("🔍 Filtros:", size=16, weight=ft.FontWeight.BOLD),
+                    ft.ElevatedButton(
+                        "Ordenar por Ventas",
+                        icon=ft.Icons.SORT,
+                        on_click=lambda e: self.sort_table_by("ventas"),
+                        style=ft.ButtonStyle(bgcolor=ft.Colors.BLUE_600, color=ft.Colors.WHITE)
+                    ),
+                    ft.ElevatedButton(
+                        "Ordenar por Ingresos",
+                        icon=ft.Icons.SORT,
+                        on_click=lambda e: self.sort_table_by("ingresos"),
+                        style=ft.ButtonStyle(bgcolor=ft.Colors.GREEN_600, color=ft.Colors.WHITE)
+                    ),
+                    ft.ElevatedButton(
+                        "Exportar CSV",
+                        icon=ft.Icons.DOWNLOAD,
+                        on_click=self.export_reportes_csv,
+                        style=ft.ButtonStyle(bgcolor=ft.Colors.ORANGE_600, color=ft.Colors.WHITE)
+                    ),
+                ],
+                spacing=15,
+                alignment=ft.MainAxisAlignment.START
+            ),
+            padding=ft.padding.symmetric(vertical=10)
+        )
+
         return ft.Column(
             controls=[
-                ft.Text("Reportes Detallados", size=32, weight=ft.FontWeight.BOLD),
+                # Header mejorado
+                ft.Container(
+                    content=ft.Row(
+                        controls=[
+                            ft.Column(
+                                controls=[
+                                    ft.Text("📊 Reportes Detallados", size=32, weight=ft.FontWeight.BOLD),
+                                    ft.Text("Análisis avanzado de ventas con métricas detalladas", size=16, color=ft.Colors.BLUE_GREY_600 if not self.dark_mode else ft.Colors.BLUE_GREY_400),
+                                ],
+                                spacing=5,
+                                expand=True
+                            ),
+                            ft.Container(
+                                content=ft.Column(
+                                    controls=[
+                                        ft.Text(f"{len(estadisticas['productos_mas_vendidos']) if estadisticas['productos_mas_vendidos'] else 0}", size=24, weight=ft.FontWeight.BOLD, color=ft.Colors.BLUE),
+                                        ft.Text("Productos Analizados", size=12, color=ft.Colors.BLUE_GREY_500),
+                                    ],
+                                    spacing=2,
+                                    alignment=ft.MainAxisAlignment.END
+                                ),
+                                padding=ft.padding.symmetric(horizontal=20, vertical=15),
+                                bgcolor=ft.Colors.BLUE_50 if not self.dark_mode else ft.Colors.BLUE_900,
+                                border_radius=15
+                            )
+                        ],
+                        alignment=ft.MainAxisAlignment.SPACE_BETWEEN
+                    ),
+                    padding=ft.padding.symmetric(vertical=20)
+                ),
+
                 ft.Divider(height=20),
 
-                ft.Row(
-                    controls=metricas,
-                    spacing=20
+                # Métricas Cards
+                ft.Container(
+                    content=ft.Row(
+                        controls=metricas,
+                        spacing=20,
+                        wrap=True
+                    ),
+                    padding=ft.padding.symmetric(vertical=10)
                 ),
 
                 ft.Divider(height=30),
 
-                ft.Text("Análisis de Ventas", size=24, weight=ft.FontWeight.BOLD),
+                # Sección de tabla mejorada
                 ft.Container(
-                    content=ft.DataTable(
-                        columns=[
-                            ft.DataColumn(ft.Text("Producto")),
-                            ft.DataColumn(ft.Text("Ventas")),
-                            ft.DataColumn(ft.Text("Ingresos")),
-                            ft.DataColumn(ft.Text("Stock Restante")),
+                    content=ft.Column(
+                        controls=[
+                            ft.Row(
+                                controls=[
+                                    ft.Text("📈 Análisis de Ventas Detallado", size=24, weight=ft.FontWeight.BOLD),
+                                    ft.Container(
+                                        content=ft.Text("Datos en tiempo real", size=12, color=ft.Colors.BLUE_GREY_600),
+                                        bgcolor=ft.Colors.BLUE_GREY_100 if not self.dark_mode else ft.Colors.BLUE_GREY_800,
+                                        padding=ft.padding.symmetric(horizontal=12, vertical=6),
+                                        border_radius=15
+                                    )
+                                ],
+                                alignment=ft.MainAxisAlignment.SPACE_BETWEEN
+                            ),
+
+                            # Controles de filtro
+                            filter_controls,
+
+                            # Tabla mejorada
+                            ft.Container(
+                                content=ft.DataTable(
+                                    columns=[
+                                        ft.DataColumn(ft.Text("Producto", weight=ft.FontWeight.BOLD, size=14)),
+                                        ft.DataColumn(ft.Text("Ventas", weight=ft.FontWeight.BOLD, size=14)),
+                                        ft.DataColumn(ft.Text("Ingresos", weight=ft.FontWeight.BOLD, size=14)),
+                                        ft.DataColumn(ft.Text("Precio Promedio", weight=ft.FontWeight.BOLD, size=14)),
+                                        ft.DataColumn(ft.Text("Tendencia", weight=ft.FontWeight.BOLD, size=14)),
+                                        ft.DataColumn(ft.Text("Stock", weight=ft.FontWeight.BOLD, size=14)),
+                                    ],
+                                    rows=table_rows,
+                                    width=1200,
+                                    height=600,
+                                    border_radius=15,
+                                    heading_row_height=60,
+                                    data_row_min_height=55,
+                                    data_row_max_height=70,
+                                    heading_row_color=ft.Colors.BLUE_GREY_50 if not self.dark_mode else ft.Colors.BLUE_GREY_800,
+                                    data_row_color={
+                                        "hovered": ft.Colors.BLUE_GREY_50 if not self.dark_mode else ft.Colors.BLUE_GREY_800
+                                    }
+                                ),
+                                padding=25,
+                                bgcolor=ft.Colors.WHITE if not self.dark_mode else ft.Colors.BLUE_GREY_900,
+                                border_radius=20,
+                                shadow=ft.BoxShadow(
+                                    spread_radius=2,
+                                    blur_radius=15,
+                                    color=ft.Colors.BLACK12 if not self.dark_mode else ft.Colors.BLACK26
+                                )
+                            ),
+
+                            # Leyenda
+                            ft.Container(
+                                content=ft.Row(
+                                    controls=[
+                                        ft.Container(
+                                            content=ft.Row([
+                                                ft.Text("↗️", size=14),
+                                                ft.Text("Alta demanda", size=12)
+                                            ], spacing=5),
+                                            padding=ft.padding.symmetric(horizontal=10, vertical=5),
+                                            bgcolor=ft.Colors.GREEN_50,
+                                            border_radius=10
+                                        ),
+                                        ft.Container(
+                                            content=ft.Row([
+                                                ft.Text("➡️", size=14),
+                                                ft.Text("Demanda media", size=12)
+                                            ], spacing=5),
+                                            padding=ft.padding.symmetric(horizontal=10, vertical=5),
+                                            bgcolor=ft.Colors.ORANGE_50,
+                                            border_radius=10
+                                        ),
+                                        ft.Container(
+                                            content=ft.Row([
+                                                ft.Text("↘️", size=14),
+                                                ft.Text("Baja demanda", size=12)
+                                            ], spacing=5),
+                                            padding=ft.padding.symmetric(horizontal=10, vertical=5),
+                                            bgcolor=ft.Colors.RED_50,
+                                            border_radius=10
+                                        ),
+                                    ],
+                                    spacing=15,
+                                    alignment=ft.MainAxisAlignment.CENTER
+                                ),
+                                padding=ft.padding.symmetric(vertical=15)
+                            )
                         ],
-                        rows=table_rows,
-                        width=800,
-                        height=300
+                        spacing=20
                     ),
-                    padding=20,
-                    bgcolor=ft.Colors.BLUE_GREY_50 if not self.dark_mode else ft.Colors.BLUE_GREY_900,
-                    border_radius=10
+                    padding=ft.padding.symmetric(horizontal=20, vertical=10)
                 )
             ],
-            spacing=20
+            spacing=0,
+            scroll=ft.ScrollMode.AUTO
         )
 
     def add_to_cart(self, e):
@@ -1091,18 +1356,22 @@ class VentaEnterpriseApp:
         self.carrito_list.rows.clear()
         total = 0
         for item in self.carrito:
+            precio_ves = item['precio'] * self.exchange_rate
+            subtotal_ves = item['subtotal'] * self.exchange_rate
             self.carrito_list.rows.append(
                 ft.DataRow(
                     cells=[
                         ft.DataCell(ft.Text(item['producto'].nombre)),
                         ft.DataCell(ft.Text(str(item['cantidad']))),
                         ft.DataCell(ft.Text(f"{item['precio']:.2f}")),
+                        ft.DataCell(ft.Text(f"{precio_ves:.2f}")),
                         ft.DataCell(ft.Text(f"{item['subtotal']:.2f}")),
                     ]
                 )
             )
             total += item['subtotal']
-        self.total_label.value = f"Total: ${total:.2f}"
+        total_ves = total * self.exchange_rate
+        self.total_label.content.value = f"Total: ${total:.2f} / Bs.{total_ves:.2f}"
         self.page.update()
 
     def finalizar_venta(self, e):
@@ -1672,6 +1941,342 @@ class VentaEnterpriseApp:
                 color=ft.Colors.BLACK12 if not self.dark_mode else ft.Colors.BLACK26
             )
         )
+
+    def sort_table_by(self, criteria):
+        """Sort the reportes table by the specified criteria"""
+        try:
+            estadisticas = self.venta_controller.get_estadisticas_reportes()
+
+            if not estadisticas['productos_mas_vendidos']:
+                return
+
+            if criteria == "ventas":
+                # Sort by sales quantity (descending)
+                estadisticas['productos_mas_vendidos'].sort(key=lambda x: x[1], reverse=True)
+            elif criteria == "ingresos":
+                # Sort by revenue (descending)
+                estadisticas['productos_mas_vendidos'].sort(key=lambda x: x[2], reverse=True)
+
+            # Update the view with sorted data
+            self.main_column.controls[1].controls[2].content = self.build_reportes_view()
+            self.page.update()
+
+            # Show success message
+            self.page.snack_bar = ft.SnackBar(
+                content=ft.Text(f"Tabla ordenada por {criteria}"),
+                bgcolor=ft.Colors.GREEN_600
+            )
+            self.page.snack_bar.open = True
+            self.page.update()
+
+        except Exception as e:
+            print(f"Error sorting table: {e}")
+            self.page.snack_bar = ft.SnackBar(
+                content=ft.Text("Error al ordenar la tabla"),
+                bgcolor=ft.Colors.RED_600
+            )
+            self.page.snack_bar.open = True
+            self.page.update()
+
+    def export_reportes_csv(self, e):
+        """Export reportes data to CSV file"""
+        try:
+            import csv
+            import os
+            from datetime import datetime
+
+            estadisticas = self.venta_controller.get_estadisticas_reportes()
+
+            if not estadisticas['productos_mas_vendidos']:
+                self.page.snack_bar = ft.SnackBar(
+                    content=ft.Text("No hay datos para exportar"),
+                    bgcolor=ft.Colors.ORANGE_600
+                )
+                self.page.snack_bar.open = True
+                self.page.update()
+                return
+
+            # Create exports directory if it doesn't exist
+            export_dir = "exports"
+            if not os.path.exists(export_dir):
+                os.makedirs(export_dir)
+
+            # Generate filename with timestamp
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"{export_dir}/reportes_ventas_{timestamp}.csv"
+
+            # Write CSV file
+            with open(filename, 'w', newline='', encoding='utf-8') as csvfile:
+                fieldnames = ['Producto', 'Ventas', 'Ingresos', 'Precio_Promedio', 'Stock_Restante', 'Porcentaje_Ventas', 'Porcentaje_Ingresos']
+                writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+
+                writer.writeheader()
+
+                total_ventas = sum(cantidad for _, cantidad, _ in estadisticas['productos_mas_vendidos'])
+                total_ingresos = sum(ingresos for _, _, ingresos in estadisticas['productos_mas_vendidos'])
+
+                for producto in estadisticas['productos_mas_vendidos']:
+                    nombre, cantidad, ingresos = producto
+
+                    # Get stock info
+                    producto_info = next((p for p in self.productos if p.nombre == nombre), None)
+                    stock_restante = producto_info.stock if producto_info else 0
+                    precio_promedio = ingresos / cantidad if cantidad > 0 else 0
+
+                    # Calculate percentages
+                    porcentaje_ventas = (cantidad / total_ventas * 100) if total_ventas > 0 else 0
+                    porcentaje_ingresos = (ingresos / total_ingresos * 100) if total_ingresos > 0 else 0
+
+                    writer.writerow({
+                        'Producto': nombre,
+                        'Ventas': cantidad,
+                        'Ingresos': f"{ingresos:.2f}",
+                        'Precio_Promedio': f"{precio_promedio:.2f}",
+                        'Stock_Restante': stock_restante,
+                        'Porcentaje_Ventas': f"{porcentaje_ventas:.1f}%",
+                        'Porcentaje_Ingresos': f"{porcentaje_ingresos:.1f}%"
+                    })
+
+                # Add summary row
+                writer.writerow({})
+                writer.writerow({
+                    'Producto': 'TOTAL',
+                    'Ventas': total_ventas,
+                    'Ingresos': f"{total_ingresos:.2f}",
+                    'Precio_Promedio': '',
+                    'Stock_Restante': '',
+                    'Porcentaje_Ventas': '100.0%',
+                    'Porcentaje_Ingresos': '100.0%'
+                })
+
+            # Show success message with file path
+            self.page.snack_bar = ft.SnackBar(
+                content=ft.Text(f"Archivo exportado: {filename}"),
+                bgcolor=ft.Colors.GREEN_600,
+                duration=5000
+            )
+            self.page.snack_bar.open = True
+            self.page.update()
+
+        except Exception as e:
+            print(f"Error exporting CSV: {e}")
+            self.page.snack_bar = ft.SnackBar(
+                content=ft.Text("Error al exportar archivo CSV"),
+                bgcolor=ft.Colors.RED_600
+            )
+            self.page.snack_bar.open = True
+            self.page.update()
+
+    def open_product_search(self, e):
+        """Open product search in a modal dialog"""
+        # Create search field
+        search_field = ft.TextField(
+            label="Buscar producto...",
+            width=500,
+            border_radius=10,
+            bgcolor=ft.Colors.WHITE if not self.dark_mode else ft.Colors.BLUE_GREY_800,
+            prefix_icon=ft.Icons.SEARCH
+        )
+
+        # Create product list container
+        product_list_container = ft.Container(
+            content=ft.GridView(
+                controls=[],
+                runs_count=3,
+                max_extent=180,
+                child_aspect_ratio=1.2,
+                spacing=15,
+                run_spacing=15,
+                padding=10
+            ),
+            height=450,
+            width=650
+        )
+
+        def filter_products(e=None):
+            search_text = search_field.value.lower() if search_field.value else ""
+            filtered_products = [
+                producto for producto in self.productos
+                if search_text in producto.nombre.lower() and producto.stock > 0
+            ]
+
+            product_items = []
+            for producto in filtered_products:
+                product_item = ft.Container(
+                    content=ft.Row(
+                        controls=[
+                            ft.Container(
+                                content=ft.Text("📦", size=24),
+                                width=40,
+                                height=40,
+                                alignment=ft.alignment.center,
+                                bgcolor=ft.Colors.BLUE_50 if not self.dark_mode else ft.Colors.BLUE_900,
+                                border_radius=8
+                            ),
+                            ft.Column(
+                                controls=[
+                                    ft.Text(producto.nombre, size=14, weight=ft.FontWeight.BOLD),
+                                    ft.Text(f"Precio: ${producto.precio:.2f}", size=12, color=ft.Colors.GREEN),
+                                    ft.Text(f"Stock: {producto.stock}", size=12, color=ft.Colors.BLUE_GREY_600)
+                                ],
+                                spacing=2,
+                                alignment=ft.MainAxisAlignment.START,
+                                expand=True
+                            ),
+                            ft.ElevatedButton(
+                                "Seleccionar",
+                                on_click=lambda e, p=producto: select_product(p),
+                                style=ft.ButtonStyle(
+                                    bgcolor=ft.Colors.BLUE_600,
+                                    color=ft.Colors.WHITE,
+                                    padding=ft.padding.symmetric(horizontal=15, vertical=8)
+                                )
+                            )
+                        ],
+                        spacing=12,
+                        alignment=ft.MainAxisAlignment.START
+                    ),
+                    padding=ft.padding.all(12),
+                    bgcolor=ft.Colors.WHITE if not self.dark_mode else ft.Colors.BLUE_GREY_800,
+                    border_radius=10,
+                    shadow=ft.BoxShadow(
+                        spread_radius=1,
+                        blur_radius=4,
+                        color=ft.Colors.BLACK12 if not self.dark_mode else ft.Colors.BLACK26
+                    )
+                )
+                product_items.append(product_item)
+
+            product_list_container.content.controls = product_items
+            self.page.update()
+
+        def select_product(producto):
+            # Send selected product back to main window
+            self.selected_producto_venta = producto
+            self.producto_seleccionado_text.value = f"Producto seleccionado: {producto.nombre}"
+            # Close modal
+            self.product_search_modal.open = False
+            self.page.update()
+
+        def close_modal(e):
+            self.product_search_modal.open = False
+            self.page.update()
+
+        search_field.on_change = filter_products
+
+        # Create modal dialog
+        self.product_search_modal = ft.AlertDialog(
+            modal=True,
+            title=ft.Text("Catálogo de Productos", size=20, weight=ft.FontWeight.BOLD),
+            content=ft.Container(
+                content=ft.Column(
+                    controls=[
+                        search_field,
+                        ft.Divider(height=20),
+                        ft.Text("Productos disponibles:", size=16, weight=ft.FontWeight.BOLD),
+                        product_list_container
+                    ],
+                    spacing=15,
+                    tight=True
+                ),
+                height=600,
+                width=700
+            ),
+            actions=[
+                ft.TextButton("Cerrar", on_click=close_modal)
+            ],
+            actions_alignment=ft.MainAxisAlignment.END
+        )
+
+        # Load initial products
+        filter_products()
+
+        # Open modal
+        self.page.dialog = self.product_search_modal
+        self.product_search_modal.open = True
+        self.page.update()
+
+    def filter_products(self, e):
+        """Filter products based on search text"""
+        if not hasattr(self, 'product_list_container'):
+            return
+
+        search_text = self.search_field.value.lower() if hasattr(self, 'search_field') and self.search_field.value else ""
+
+        # Filter products
+        filtered_products = [
+            producto for producto in self.productos
+            if search_text in producto.nombre.lower() and producto.stock > 0
+        ]
+
+        # Create product list items
+        product_items = []
+        for producto in filtered_products:
+            product_item = ft.Container(
+                content=ft.Row(
+                    controls=[
+                        ft.Container(
+                            content=ft.Text("📦", size=24),
+                            width=40,
+                            height=40,
+                            alignment=ft.alignment.center,
+                            bgcolor=ft.Colors.BLUE_50 if not self.dark_mode else ft.Colors.BLUE_900,
+                            border_radius=8
+                        ),
+                        ft.Column(
+                            controls=[
+                                ft.Text(producto.nombre, size=14, weight=ft.FontWeight.BOLD),
+                                ft.Text(f"Precio: ${producto.precio:.2f}", size=12, color=ft.Colors.GREEN),
+                                ft.Text(f"Stock: {producto.stock}", size=12, color=ft.Colors.BLUE_GREY_600)
+                            ],
+                            spacing=2,
+                            alignment=ft.MainAxisAlignment.START,
+                            expand=True
+                        ),
+                        ft.ElevatedButton(
+                            "Seleccionar",
+                            on_click=lambda e, p=producto: self.select_product_from_modal(p),
+                            style=ft.ButtonStyle(
+                                bgcolor=ft.Colors.BLUE_600,
+                                color=ft.Colors.WHITE,
+                                padding=ft.padding.symmetric(horizontal=15, vertical=8)
+                            )
+                        )
+                    ],
+                    spacing=12,
+                    alignment=ft.MainAxisAlignment.START
+                ),
+                padding=ft.padding.all(12),
+                bgcolor=ft.Colors.WHITE if not self.dark_mode else ft.Colors.BLUE_GREY_800,
+                border_radius=10,
+                shadow=ft.BoxShadow(
+                    spread_radius=1,
+                    blur_radius=4,
+                    color=ft.Colors.BLACK12 if not self.dark_mode else ft.Colors.BLACK26
+                )
+            )
+            product_items.append(product_item)
+
+        # Update product list
+        self.product_list_container.content.controls = product_items
+        self.page.update()
+
+    def select_product_from_modal(self, producto):
+        """Select a product from the search modal"""
+        self.selected_producto_venta = producto
+        self.producto_seleccionado_text.value = f"Producto seleccionado: {producto.nombre}"
+
+        # Close modal
+        self.close_product_search_modal()
+
+        # Update the page
+        self.page.update()
+
+    def close_product_search_modal(self):
+        """Close the product search modal"""
+        if hasattr(self, 'product_search_modal'):
+            self.product_search_modal.open = False
+            self.page.update()
 
 
 def main(page: ft.Page):
