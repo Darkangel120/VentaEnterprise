@@ -18,6 +18,12 @@ class VentaEnterpriseApp:
         self.exchange_rate = 1.0  # Default exchange rate
         self.selected_producto_venta = None
 
+        # Variables para manejo del carrito
+        self.selected_cart_index = None  # Índice del producto seleccionado en el carrito
+        self.cart_edit_mode = False  # Si estamos en modo edición
+        self.last_click_time = None  # Para detectar doble clic
+        self.cart_buttons_visible = False  # Si los botones de eliminar/editar están visibles
+
         # Theme setup
         self.page.theme_mode = ft.ThemeMode.DARK if self.dark_mode else ft.ThemeMode.LIGHT
         self.page.update()
@@ -1411,12 +1417,31 @@ class VentaEnterpriseApp:
             self.page.dialog.open = True
             self.page.update()
 
+    def select_cart_item(self, index):
+        """Seleccionar un item del carrito para edición/eliminación"""
+        if self.selected_cart_index == index:
+            # Si ya está seleccionado, deseleccionar
+            self.selected_cart_index = None
+            self.cart_buttons_visible = False
+        else:
+            # Seleccionar nuevo item
+            self.selected_cart_index = index
+            self.cart_buttons_visible = True
+
+        # Actualizar display del carrito
+        self.update_carrito()
+
     def update_carrito(self):
         self.carrito_list.rows.clear()
         total = 0
-        for item in self.carrito:
+        for i, item in enumerate(self.carrito):
             precio_ves = item['precio'] * self.exchange_rate
             subtotal_ves = item['subtotal'] * self.exchange_rate
+
+            # Determinar si esta fila está seleccionada
+            is_selected = (self.selected_cart_index == i)
+            row_color = ft.Colors.BLUE_50 if is_selected and not self.dark_mode else (ft.Colors.BLUE_900 if is_selected and self.dark_mode else None)
+
             self.carrito_list.rows.append(
                 ft.DataRow(
                     cells=[
@@ -1425,7 +1450,9 @@ class VentaEnterpriseApp:
                         ft.DataCell(ft.Text(f"{item['precio']:.2f}")),
                         ft.DataCell(ft.Text(f"{precio_ves:.2f}")),
                         ft.DataCell(ft.Text(f"{item['subtotal']:.2f}")),
-                    ]
+                    ],
+                    on_select_changed=lambda e, idx=i: self.select_cart_item(idx),
+                    color=row_color
                 )
             )
             total += item['subtotal']

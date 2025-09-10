@@ -44,7 +44,6 @@ class ExchangeRateService:
         """Obtiene la tasa desde APIs públicas"""
         # Lista de APIs para obtener tasa del dólar en Venezuela
         apis = [
-            "https://pydolarve.org/api/v1/dollar?page=bcv",
             "https://api.exchangedyn.com/markets/quotes/usdves/bcv",
             "https://ve.dolarapi.com/v1/dolares/oficial"
         ]
