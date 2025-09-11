@@ -18,6 +18,13 @@ class ProductoController:
         p = Producto(id=id, nombre=nombre, precio=precio, stock=stock, costo_usd=costo_usd, porcentaje_ganancia=porcentaje_ganancia)
         p.save()
 
+    def update_producto_stock(self, producto_id, nuevo_stock):
+        conn = create_connection()
+        cursor = conn.cursor()
+        cursor.execute('UPDATE productos SET stock = ? WHERE id = ?', (nuevo_stock, producto_id))
+        conn.commit()
+        conn.close()
+
     def delete_producto(self, id):
         p = Producto(id=id)
         p.delete()
@@ -66,8 +73,7 @@ class VentaController:
     def registrar_venta(self, fecha, total, detalles):
         v = Venta(fecha=fecha, total=total, detalles=detalles)
         v.save()
-        for detalle in detalles:
-            ProductoController().update_stock(detalle['producto_id'], detalle['cantidad'])
+        # Nota: El stock ya se actualiza en finalizar_venta, no es necesario hacerlo aquí
 
     def get_ventas_del_dia(self):
         """Obtiene el total de ventas del día actual"""

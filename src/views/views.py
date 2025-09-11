@@ -8,6 +8,7 @@ from .catalogo_view import build_catalogo_view, create_productos_grid
 from .factura_view import build_factura_view
 from .reportes_view import build_reportes_view
 from .dashboard_view import build_dashboard
+import time
 
 class VentaEnterpriseApp:
     def __init__(self, page: ft.Page):
@@ -397,18 +398,44 @@ class VentaEnterpriseApp:
             if cantidad <= 0:
                 raise ValueError("Cantidad debe ser positiva")
             if cantidad > self.selected_producto_venta.stock:
-                raise ValueError("Stock insuficiente")
+                raise ValueError(f"Stock insuficiente. Solo quedan {self.selected_producto_venta.stock} unidades")
             self.carrito.append({
                 'producto': self.selected_producto_venta,
                 'cantidad': cantidad,
                 'precio': self.selected_producto_venta.precio,
                 'subtotal': cantidad * self.selected_producto_venta.precio
             })
+            
+            # RESETEA EL PRODUCTO SELECCIONADO DESPUÉS DE AGREGAR AL CARRITO
+            self.selected_producto_venta = None
+            if hasattr(self, 'producto_seleccionado_text'):
+                self.producto_seleccionado_text.value = "Producto seleccionado: "
+            if hasattr(self, 'cantidad'):
+                self.cantidad.disabled = True
+                self.cantidad.value = "1"
+                
             self.update_carrito()
+            
         except Exception as ex:
             self.page.dialog = ft.AlertDialog(title=ft.Text("Error"), content=ft.Text(str(ex)), actions=[ft.TextButton("Cerrar", on_click=lambda e: self.page.dialog.close())])
             self.page.dialog.open = True
             self.page.update()
+
+    def handle_cart_click(self, index):
+        """Manejar clics en el carrito - simple clic o doble clic"""
+        current_time = time.time()
+        
+        # Verificar si es un doble clic (dentro de 0.5 segundos)
+        if self.last_click_time and (current_time - self.last_click_time) < 0.5:
+            # Doble clic - entrar en modo edición
+            self.cart_edit_mode = True
+            self.selected_cart_index = index
+            self.update_carrito()
+        else:
+            # Clic simple - seleccionar item
+            self.select_cart_item(index)
+        
+        self.last_click_time = current_time
 
     def select_cart_item(self, index):
         """Seleccionar un item del carrito para edición/eliminación"""
@@ -421,8 +448,58 @@ class VentaEnterpriseApp:
             self.selected_cart_index = index
             self.cart_buttons_visible = True
 
+        # Mostrar/ocultar botones de edición/eliminación
+        if hasattr(self, 'editar_carrito_button') and hasattr(self, 'eliminar_carrito_button'):
+            self.editar_carrito_button.visible = self.cart_buttons_visible
+            self.eliminar_carrito_button.visible = self.cart_buttons_visible
+
         # Actualizar display del carrito
         self.update_carrito()
+        self.page.update()
+
+    def editar_item_carrito(self, e):
+        """Entrar en modo edición para el item seleccionado"""
+        if self.selected_cart_index is not None:
+            self.cart_edit_mode = True
+            self.update_carrito()
+            self.page.update()
+
+    def eliminar_item_carrito(self, e):
+        """Eliminar el item seleccionado del carrito"""
+        if self.selected_cart_index is not None:
+            # Eliminar el item del carrito
+            del self.carrito[self.selected_cart_index]
+            
+            # Resetear selección
+            self.selected_cart_index = None
+            self.cart_buttons_visible = False
+            self.cart_edit_mode = False
+            
+            # Ocultar botones
+            if hasattr(self, 'editar_carrito_button') and hasattr(self, 'eliminar_carrito_button'):
+                self.editar_carrito_button.visible = False
+                self.eliminar_carrito_button.visible = False
+            
+            # Actualizar carrito
+            self.update_carrito()
+            self.page.update()
+
+    def update_cart_quantity(self, index, new_quantity):
+        """Actualizar la cantidad de un item en el carrito"""
+        try:
+            new_qty = int(new_quantity)
+            if new_qty > 0:
+                self.carrito[index]['cantidad'] = new_qty
+                self.carrito[index]['subtotal'] = new_qty * self.carrito[index]['precio']
+        except ValueError:
+            # Si no es un número válido, no hacer nada
+            pass
+
+    def confirm_cart_edit(self, index):
+        """Confirmar la edición y salir del modo edición"""
+        self.cart_edit_mode = False
+        self.update_carrito()
+        self.page.update()
 
     def update_carrito(self):
         self.carrito_list.rows.clear()
@@ -477,14 +554,62 @@ class VentaEnterpriseApp:
     def finalizar_venta(self, e):
         if not self.carrito:
             return
-        fecha = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        total = sum(item['subtotal'] for item in self.carrito)
-        detalles = [{'producto_id': item['producto'].id, 'cantidad': item['cantidad'], 'precio': item['precio']} for item in self.carrito]
-        self.venta_controller.registrar_venta(fecha, total, detalles)
-        self.carrito.clear()
-        self.update_carrito()
-        self.page.dialog = ft.AlertDialog(title=ft.Text("Venta Finalizada"), content=ft.Text(f"Total: ${total:.2f}"), actions=[ft.TextButton("Cerrar", on_click=lambda e: self.page.dialog.close())])
-        self.page.dialog.open = True
+        
+        try:
+            fecha = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            total = sum(item['subtotal'] for item in self.carrito)
+            detalles = []
+            
+            # Primero verificar que haya suficiente stock para todos los productos
+            for item in self.carrito:
+                producto = item['producto']  # Este es el objeto Producto
+                cantidad = item['cantidad']
+                
+                if cantidad > producto.stock:
+                    raise ValueError(f"Stock insuficiente para {producto.nombre}. Stock actual: {producto.stock}, Cantidad solicitada: {cantidad}")
+            
+            # Si todo está bien, procesar la venta
+            for item in self.carrito:
+                producto = item['producto']  # Este es el objeto Producto
+                cantidad = item['cantidad']
+                precio = item['precio']
+                
+                # Actualizar el stock del producto
+                self.producto_controller.update_producto_stock(producto.id, producto.stock - cantidad)
+                
+                # Agregar al detalle de la venta
+                detalles.append({
+                    'producto_id': producto.id, 
+                    'cantidad': cantidad, 
+                    'precio': precio
+                })
+            
+            # Registrar la venta
+            self.venta_controller.registrar_venta(fecha, total, detalles)
+            
+            # Limpiar el carrito
+            self.carrito.clear()
+            self.update_carrito()
+            
+            # Mostrar mensaje de éxito
+            self.page.dialog = ft.AlertDialog(
+                title=ft.Text("✅ Venta Finalizada"), 
+                content=ft.Text(f"Total: ${total:.2f}\nVenta registrada exitosamente."), 
+                actions=[ft.TextButton("Cerrar", on_click=lambda e: self.page.dialog.close())]
+            )
+            self.page.dialog.open = True
+            
+            # Recargar productos para reflejar los nuevos stocks
+            self.load_productos()
+            
+        except Exception as ex:
+            self.page.dialog = ft.AlertDialog(
+                title=ft.Text("❌ Error"), 
+                content=ft.Text(str(ex)), 
+                actions=[ft.TextButton("Cerrar", on_click=lambda e: self.page.dialog.close())]
+            )
+            self.page.dialog.open = True
+        
         self.page.update()
 
     def load_productos(self):

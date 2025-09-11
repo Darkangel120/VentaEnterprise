@@ -33,6 +33,31 @@ def build_ventas_view(app):
         )
     )
 
+    # Botones para editar/eliminar productos del carrito
+    app.editar_carrito_button = ft.ElevatedButton(
+        "Editar",
+        on_click=app.editar_item_carrito,
+        icon=ft.Icons.EDIT,
+        style=ft.ButtonStyle(
+            bgcolor=ft.Colors.ORANGE_600,
+            color=ft.Colors.WHITE,
+            padding=ft.padding.symmetric(horizontal=20, vertical=12)
+        ),
+        visible=False
+    )
+
+    app.eliminar_carrito_button = ft.ElevatedButton(
+        "Eliminar",
+        on_click=app.eliminar_item_carrito,
+        icon=ft.Icons.DELETE,
+        style=ft.ButtonStyle(
+            bgcolor=ft.Colors.RED_600,
+            color=ft.Colors.WHITE,
+            padding=ft.padding.symmetric(horizontal=20, vertical=12)
+        ),
+        visible=False
+    )
+
     # Enhanced cart display
     app.carrito_list = ft.DataTable(
         columns=[
@@ -70,9 +95,12 @@ def build_ventas_view(app):
     )
 
     # Container for selected product display
-    producto_seleccionado_nombre = app.selected_producto_venta.nombre if app.selected_producto_venta else "Ninguno"
+    producto_seleccionado_nombre = app.selected_producto_venta.nombre if app.selected_producto_venta else ""
     app.producto_seleccionado_text = ft.Text(f"Producto seleccionado: {producto_seleccionado_nombre}", size=14)
     app.productos_container = ft.Container()  # Will hold the modal or product list when opened
+
+    # Poblar el carrito con los datos actuales
+    app.update_carrito()
 
     return ft.Column(
         controls=[
@@ -146,8 +174,12 @@ def build_ventas_view(app):
                                 controls=[
                                     app.carrito_list,
                                     ft.Divider(height=20),
+                                    # Botones de edición/eliminación (ocultos inicialmente)
                                     ft.Row(
                                         controls=[
+                                            app.editar_carrito_button,
+                                            app.eliminar_carrito_button,
+                                            ft.Container(expand=True),  # Espaciador
                                             app.total_label,
                                             app.finalizar_venta_button
                                         ],
