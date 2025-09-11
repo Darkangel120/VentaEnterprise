@@ -683,6 +683,92 @@ class VentaEnterpriseApp:
         self.precio.value = ""
         self.stock.value = ""
         self.selected_producto = None
+        # Habilitar/deshabilitar botones según corresponda
+        if hasattr(self, 'update_button'):
+            self.update_button.disabled = True
+        if hasattr(self, 'delete_button'):
+            self.delete_button.disabled = True
+        if hasattr(self, 'add_button'):
+            self.add_button.disabled = False
+        self.page.update()
+
+    def filter_productos(self, e):
+        """Filtrar productos en la tabla según el texto de búsqueda"""
+        if not hasattr(self, 'productos_list') or not hasattr(self, 'search_field'):
+            return
+
+        search_text = self.search_field.value.lower() if self.search_field.value else ""
+
+        # Limpiar filas actuales
+        self.productos_list.rows.clear()
+
+        # Filtrar productos
+        filtered_products = [
+            producto for producto in self.productos
+            if search_text in producto.nombre.lower()
+        ]
+
+        # Agregar productos filtrados a la tabla
+        for i, p in enumerate(filtered_products):
+            self.productos_list.rows.append(
+                ft.DataRow(
+                    cells=[
+                        ft.DataCell(ft.Text(str(p.id))),
+                        ft.DataCell(ft.Text(p.nombre)),
+                        ft.DataCell(ft.Text(f"{p.precio:.2f}")),
+                        ft.DataCell(ft.Text(str(p.stock))),
+                    ],
+                    on_select_changed=lambda e, idx=i, prod=p: self.on_row_selected_with_product(e, idx, prod)
+                )
+            )
+
+        self.page.update()
+
+    def on_row_selected_with_product(self, e, idx, producto):
+        """Manejar selección de fila con producto específico"""
+        if e.data == 'true':
+            self.selected_producto = producto
+            self.nombre.value = producto.nombre
+            self.precio.value = str(producto.precio)
+            self.stock.value = str(producto.stock)
+
+            # Habilitar botones de actualizar y eliminar
+            if hasattr(self, 'update_button'):
+                self.update_button.disabled = False
+            if hasattr(self, 'delete_button'):
+                self.delete_button.disabled = False
+            if hasattr(self, 'add_button'):
+                self.add_button.disabled = True
+
+            self.page.update()
+
+    def confirm_delete_producto(self, e):
+        """Mostrar diálogo de confirmación antes de eliminar producto"""
+        if not self.selected_producto:
+            return
+
+        def delete_confirmed(e):
+            self.delete_producto(e)
+            self.page.dialog.close()
+
+        def cancel_delete(e):
+            self.page.dialog.close()
+
+        self.page.dialog = ft.AlertDialog(
+            modal=True,
+            title=ft.Text("🗑️ Confirmar Eliminación"),
+            content=ft.Text(f"¿Está seguro de que desea eliminar el producto '{self.selected_producto.nombre}'?\n\nEsta acción no se puede deshacer."),
+            actions=[
+                ft.TextButton("Cancelar", on_click=cancel_delete),
+                ft.ElevatedButton(
+                    "Eliminar",
+                    on_click=delete_confirmed,
+                    style=ft.ButtonStyle(bgcolor=ft.Colors.RED_600)
+                ),
+            ],
+            actions_alignment=ft.MainAxisAlignment.END,
+        )
+        self.page.dialog.open = True
         self.page.update()
 
     def select_product_for_sale(self, e, idx):

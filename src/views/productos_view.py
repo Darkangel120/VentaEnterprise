@@ -1,27 +1,76 @@
 import flet as ft
 
 def build_productos_view(app):
-    app.nombre = ft.TextField(label="Nombre del Producto", width=300)
-    app.precio = ft.TextField(label="Precio", width=150)
-    app.stock = ft.TextField(label="Stock Inicial", width=150)
+    # Campo de búsqueda
+    app.search_field = ft.TextField(
+        label="Buscar productos...",
+        width=400,
+        prefix_icon=ft.Icons.SEARCH,
+        on_change=app.filter_productos,
+        border_radius=10,
+        height=50
+    )
 
+    # Campos del formulario con mejor diseño
+    app.nombre = ft.TextField(
+        label="Nombre del Producto",
+        width=300,
+        border_radius=10,
+        height=50,
+        prefix_icon=ft.Icons.SHOPPING_BAG
+    )
+    app.precio = ft.TextField(
+        label="Precio (VES)",
+        width=150,
+        border_radius=10,
+        height=50,
+        prefix_icon=ft.Icons.ATTACH_MONEY,
+        keyboard_type=ft.KeyboardType.NUMBER
+    )
+    app.stock = ft.TextField(
+        label="Stock Inicial",
+        width=150,
+        border_radius=10,
+        height=50,
+        prefix_icon=ft.Icons.INVENTORY,
+        keyboard_type=ft.KeyboardType.NUMBER
+    )
+
+    # Botones con mejor diseño
     app.add_button = ft.ElevatedButton(
         "Agregar Producto",
         on_click=app.add_producto,
         icon=ft.Icons.ADD,
-        style=ft.ButtonStyle(bgcolor=ft.Colors.GREEN)
+        style=ft.ButtonStyle(
+            bgcolor=ft.Colors.GREEN_600,
+            shape=ft.RoundedRectangleBorder(radius=10)
+        ),
+        height=50,
+        width=180
     )
     app.update_button = ft.ElevatedButton(
         "Actualizar Producto",
         on_click=app.update_producto,
         icon=ft.Icons.UPDATE,
-        style=ft.ButtonStyle(bgcolor=ft.Colors.BLUE)
+        style=ft.ButtonStyle(
+            bgcolor=ft.Colors.BLUE_600,
+            shape=ft.RoundedRectangleBorder(radius=10)
+        ),
+        height=50,
+        width=180,
+        disabled=True
     )
     app.delete_button = ft.ElevatedButton(
         "Eliminar Producto",
-        on_click=app.delete_producto,
+        on_click=app.confirm_delete_producto,
         icon=ft.Icons.DELETE,
-        style=ft.ButtonStyle(bgcolor=ft.Colors.RED)
+        style=ft.ButtonStyle(
+            bgcolor=ft.Colors.RED_600,
+            shape=ft.RoundedRectangleBorder(radius=10)
+        ),
+        height=50,
+        width=180,
+        disabled=True
     )
 
     app.productos_list = ft.DataTable(
@@ -41,40 +90,79 @@ def build_productos_view(app):
         heading_row_color=ft.Colors.BLUE_GREY_50 if not app.dark_mode else ft.Colors.BLUE_GREY_800
     )
 
+    # Cargar productos después de crear la tabla
+    app.load_productos()
+
     return ft.Column(
         controls=[
-            ft.Text("Gestión de Productos", size=32, weight=ft.FontWeight.BOLD),
+            # Título principal
+            ft.Container(
+                content=ft.Text("Gestión de Productos", size=32, weight=ft.FontWeight.BOLD),
+                alignment=ft.alignment.center,
+                padding=ft.padding.symmetric(vertical=10)
+            ),
             ft.Divider(height=20),
 
+            # Sección del formulario
             ft.Container(
                 content=ft.Column(
                     controls=[
                         ft.Text("Información del Producto", size=18, weight=ft.FontWeight.BOLD),
                         ft.Row(
                             controls=[app.nombre, app.precio, app.stock],
-                            spacing=20
+                            spacing=20,
+                            alignment=ft.MainAxisAlignment.START
                         ),
                         ft.Row(
                             controls=[app.add_button, app.update_button, app.delete_button],
-                            spacing=20
+                            spacing=20,
+                            alignment=ft.MainAxisAlignment.START
                         ),
                     ],
                     spacing=15
                 ),
                 padding=20,
                 bgcolor=ft.Colors.BLUE_GREY_50 if not app.dark_mode else ft.Colors.BLUE_GREY_900,
-                border_radius=10
+                border_radius=15,
+                shadow=ft.BoxShadow(
+                    spread_radius=1,
+                    blur_radius=10,
+                    color=ft.Colors.BLACK12 if not app.dark_mode else ft.Colors.BLACK26,
+                    offset=ft.Offset(0, 2)
+                )
             ),
 
             ft.Divider(height=30),
 
-            ft.Text("Lista de Productos", size=24, weight=ft.FontWeight.BOLD),
+            # Sección de búsqueda y lista
             ft.Container(
-                content=app.productos_list,
-                padding=20,
-                bgcolor=ft.Colors.BLUE_GREY_50 if not app.dark_mode else ft.Colors.BLUE_GREY_900,
-                border_radius=10
+                content=ft.Column(
+                    controls=[
+                        ft.Row(
+                            controls=[
+                                ft.Text("Lista de Productos", size=24, weight=ft.FontWeight.BOLD),
+                                app.search_field
+                            ],
+                            alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+                            vertical_alignment=ft.CrossAxisAlignment.CENTER
+                        ),
+                        ft.Container(
+                            content=app.productos_list,
+                            padding=20,
+                            bgcolor=ft.Colors.BLUE_GREY_50 if not app.dark_mode else ft.Colors.BLUE_GREY_900,
+                            border_radius=15,
+                            shadow=ft.BoxShadow(
+                                spread_radius=1,
+                                blur_radius=10,
+                                color=ft.Colors.BLACK12 if not app.dark_mode else ft.Colors.BLACK26,
+                                offset=ft.Offset(0, 2)
+                            )
+                        )
+                    ],
+                    spacing=15
+                )
             )
         ],
-        spacing=20
+        spacing=20,
+        scroll=ft.ScrollMode.AUTO
     )
