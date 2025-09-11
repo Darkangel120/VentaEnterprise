@@ -22,12 +22,14 @@ def get_color_with_opacity(color, opacity):
         return ft.Colors.BLUE_GREY_200
 
 def create_metric_card(app, title, value, color, icon):
-    # Crear color de fondo con opacidad correcta
-    bg_color = get_color_with_opacity(color, 0.2)
+    # Crear color de fondo más oscuro
+    bg_color = get_color_with_opacity(color, 0.7)
 
     # Colores adaptativos para texto
     text_color = ft.Colors.BLACK if not app.dark_mode else ft.Colors.WHITE
-    icon_color = ft.Colors.BLACK if not app.dark_mode else ft.Colors.WHITE
+
+    # Iconos en colores base
+    icon_color = color
 
     return ft.Container(
         content=ft.Column(
@@ -137,16 +139,16 @@ def build_reportes_view(app):
                 ], spacing=2, alignment=ft.MainAxisAlignment.CENTER)),
                 ft.DataCell(ft.Text(f"${precio_promedio:.2f}", size=14, color=ft.Colors.WHITE if app.dark_mode else ft.Colors.BLACK)),
                 ft.DataCell(ft.Container(
-                    content=ft.Text(tendencia, size=16, color=ft.Colors.WHITE if app.dark_mode else ft.Colors.BLACK),
+                    content=ft.Text(tendencia, size=16, color=ft.Colors.WHITE),
                     alignment=ft.alignment.center,
-                    bgcolor=get_color_with_opacity(tendencia_color, 0.2),
+                    bgcolor=get_color_with_opacity(tendencia_color, 0.7),
                     padding=ft.padding.all(8),
                     border_radius=8
                 )),
                 ft.DataCell(ft.Container(
-                    content=ft.Text(str(stock_restante), size=14, color=ft.Colors.BLACK if not app.dark_mode else ft.Colors.WHITE),
+                    content=ft.Text(str(stock_restante), size=14, color=ft.Colors.WHITE),
                     alignment=ft.alignment.center,
-                    bgcolor=ft.Colors.RED_50 if stock_restante < 10 else ft.Colors.GREEN_50 if stock_restante > 50 else ft.Colors.ORANGE_50,
+                    bgcolor=ft.Colors.RED_400 if stock_restante < 10 else ft.Colors.GREEN_400 if stock_restante > 50 else ft.Colors.ORANGE_400,
                     padding=ft.padding.symmetric(horizontal=12, vertical=6),
                     border_radius=12
                 )),
