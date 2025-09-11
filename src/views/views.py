@@ -38,6 +38,10 @@ class VentaEnterpriseApp:
         # Load initial data
         self.load_productos()
 
+        # Referencias a contenedores de botones (se inicializarán en build_productos_view)
+        self.add_button_container = None
+        self.edit_buttons_container = None
+
         self.build_ui()
 
     def build_ui(self):
@@ -625,7 +629,7 @@ class VentaEnterpriseApp:
                             ft.DataCell(ft.Text(f"{p.precio:.2f}")),
                             ft.DataCell(ft.Text(str(p.stock))),
                         ],
-                        on_select_changed=lambda e, idx=i: self.on_row_selected(e, idx)
+                        on_select_changed=lambda e, idx=i, prod=p: self.on_row_selected_with_product(e, idx, prod)
                     )
                 )
             self.page.update()
@@ -637,7 +641,23 @@ class VentaEnterpriseApp:
             self.nombre.value = p.nombre
             self.precio.value = str(p.precio)
             self.stock.value = str(p.stock)
+
+            # Mostrar contenedor de botones de edición y ocultar el de agregar
+            if hasattr(self, 'edit_buttons_container'):
+                self.edit_buttons_container.visible = True
+            if hasattr(self, 'add_button_container'):
+                self.add_button_container.visible = False
+
+            # Habilitar botones de actualizar y eliminar
+            if hasattr(self, 'update_button'):
+                self.update_button.disabled = False
+            if hasattr(self, 'delete_button'):
+                self.delete_button.disabled = False
+
             self.page.update()
+        else:
+            # Si se deselecciona, limpiar el formulario
+            self.clear_form()
 
     def add_producto(self, e):
         try:
@@ -683,13 +703,19 @@ class VentaEnterpriseApp:
         self.precio.value = ""
         self.stock.value = ""
         self.selected_producto = None
+
+        # Resetear visibilidad de contenedores de botones
+        if hasattr(self, 'add_button_container'):
+            self.add_button_container.visible = True
+        if hasattr(self, 'edit_buttons_container'):
+            self.edit_buttons_container.visible = False
+
         # Habilitar/deshabilitar botones según corresponda
         if hasattr(self, 'update_button'):
             self.update_button.disabled = True
         if hasattr(self, 'delete_button'):
             self.delete_button.disabled = True
-        if hasattr(self, 'add_button'):
-            self.add_button.disabled = False
+
         self.page.update()
 
     def filter_productos(self, e):
@@ -732,27 +758,69 @@ class VentaEnterpriseApp:
             self.precio.value = str(producto.precio)
             self.stock.value = str(producto.stock)
 
+            # Mostrar contenedor de botones de edición y ocultar el de agregar
+            if hasattr(self, 'edit_buttons_container'):
+                self.edit_buttons_container.visible = True
+            if hasattr(self, 'add_button_container'):
+                self.add_button_container.visible = False
+
             # Habilitar botones de actualizar y eliminar
             if hasattr(self, 'update_button'):
                 self.update_button.disabled = False
             if hasattr(self, 'delete_button'):
                 self.delete_button.disabled = False
-            if hasattr(self, 'add_button'):
-                self.add_button.disabled = True
 
             self.page.update()
+        else:
+            # Si se deselecciona, limpiar el formulario
+            self.clear_form()
 
     def confirm_delete_producto(self, e):
         """Mostrar diálogo de confirmación antes de eliminar producto"""
         if not self.selected_producto:
+            self.page.snack_bar = ft.SnackBar(
+                content=ft.Text("❌ Seleccione un producto para eliminar"),
+                bgcolor=ft.Colors.ORANGE_600
+            )
+            self.page.snack_bar.open = True
+            self.page.update()
             return
 
         def delete_confirmed(e):
-            self.delete_producto(e)
-            self.page.dialog.close()
+            try:
+                # Eliminar el producto usando el controlador
+                self.producto_controller.delete_producto(self.selected_producto.id)
+
+                # Limpiar el formulario
+                self.clear_form()
+
+                # Recargar la lista de productos
+                self.load_productos()
+
+                # Mostrar mensaje de éxito
+                self.page.snack_bar = ft.SnackBar(
+                    content=ft.Text("✅ Producto eliminado exitosamente"),
+                    bgcolor=ft.Colors.GREEN_600
+                )
+                self.page.snack_bar.open = True
+
+            except Exception as ex:
+                # Mostrar mensaje de error
+                self.page.snack_bar = ft.SnackBar(
+                    content=ft.Text(f"❌ Error al eliminar producto: {str(ex)}"),
+                    bgcolor=ft.Colors.RED_600
+                )
+                self.page.snack_bar.open = True
+
+            finally:
+                # Cerrar el diálogo y actualizar la página
+                self.page.dialog.open = False
+                self.page.update()
 
         def cancel_delete(e):
-            self.page.dialog.close()
+            # Cerrar el diálogo y actualizar la página
+            self.page.dialog.open = False
+            self.page.update()
 
         self.page.dialog = ft.AlertDialog(
             modal=True,
@@ -770,6 +838,8 @@ class VentaEnterpriseApp:
         )
         self.page.dialog.open = True
         self.page.update()
+        # Agregar el diálogo a la página para que se muestre correctamente
+        self.page.add(self.page.dialog)
 
     def select_product_for_sale(self, e, idx):
         """Handle product selection for sale"""

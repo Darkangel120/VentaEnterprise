@@ -90,6 +90,24 @@ def build_productos_view(app):
         heading_row_color=ft.Colors.BLUE_GREY_50 if not app.dark_mode else ft.Colors.BLUE_GREY_800
     )
 
+    # Crear contenedores para botones
+    app.add_button_container = ft.Container(
+        content=ft.Row(
+            controls=[app.add_button],
+            spacing=20,
+            alignment=ft.MainAxisAlignment.START
+        ),
+        visible=True
+    )
+    app.edit_buttons_container = ft.Container(
+        content=ft.Row(
+            controls=[app.update_button, app.delete_button],
+            spacing=20,
+            alignment=ft.MainAxisAlignment.START
+        ),
+        visible=False
+    )
+
     # Cargar productos después de crear la tabla
     app.load_productos()
 
@@ -113,11 +131,8 @@ def build_productos_view(app):
                             spacing=20,
                             alignment=ft.MainAxisAlignment.START
                         ),
-                        ft.Row(
-                            controls=[app.add_button, app.update_button, app.delete_button],
-                            spacing=20,
-                            alignment=ft.MainAxisAlignment.START
-                        ),
+                        app.add_button_container,
+                        app.edit_buttons_container
                     ],
                     spacing=15
                 ),
