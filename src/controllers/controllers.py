@@ -115,29 +115,7 @@ class VentaController:
         productos = ProductoController().get_all()
         return sum(p.precio * p.stock for p in productos)
 
-    def get_productos_destacados(self, limit=3):
-        """Obtiene los productos más vendidos"""
-        conn = create_connection()
-        cursor = conn.cursor()
-        cursor.execute('''
-            SELECT p.nombre, SUM(dv.cantidad) as total_vendido, SUM(dv.cantidad * dv.precio) as ingresos
-            FROM productos p
-            JOIN detalle_venta dv ON p.id = dv.producto_id
-            GROUP BY p.id, p.nombre
-            ORDER BY total_vendido DESC
-            LIMIT ?
-        ''', (limit,))
-        results = cursor.fetchall()
-        conn.close()
 
-        productos_destacados = []
-        for row in results:
-            productos_destacados.append({
-                'nombre': row[0],
-                'ventas': row[1],
-                'ingresos': row[2]
-            })
-        return productos_destacados
 
     def get_productos_mas_vendidos(self, limit=4):
         """Obtiene los productos más vendidos con información completa"""
@@ -164,31 +142,7 @@ class VentaController:
             })
         return productos_mas_vendidos
 
-    def get_actividad_reciente(self, limit=5):
-        """Obtiene las ventas más recientes"""
-        conn = create_connection()
-        cursor = conn.cursor()
-        cursor.execute('''
-            SELECT v.fecha, v.total,
-                   GROUP_CONCAT(p.nombre || ' (' || dv.cantidad || ')') as productos
-            FROM ventas v
-            JOIN detalle_venta dv ON v.id = dv.venta_id
-            JOIN productos p ON dv.producto_id = p.id
-            GROUP BY v.id, v.fecha, v.total
-            ORDER BY v.fecha DESC
-            LIMIT ?
-        ''', (limit,))
-        results = cursor.fetchall()
-        conn.close()
 
-        actividad = []
-        for row in results:
-            actividad.append({
-                'fecha': row[0],
-                'total': row[1],
-                'productos': row[2] or 'Sin productos'
-            })
-        return actividad
 
     def get_ventas_recientes(self, limit=4):
         """Obtiene las ventas más recientes con detalles para la tabla de actividad"""
