@@ -46,56 +46,54 @@ def create_professional_metric_card(app, title, value, color, icon, trend, subti
     )
 
 def create_enhanced_bar(self, day, amount, height, color):
-    """Create an enhanced bar with value display"""
+    """Create an enhanced bar with tooltip for value display"""
+    # Formatear el valor con separadores de miles y 2 decimales
+    formatted_amount = f"${amount:,.2f}"
+
     return ft.Container(
         content=ft.Column(
             controls=[
-                # Value display above bar
-                ft.Container(
-                    content=ft.Text(f"${amount}", size=10, weight=ft.FontWeight.BOLD, color=color),
-                    height=20,
-                    alignment=ft.alignment.center
-                ),
-                # The bar itself
+                # The bar itself with tooltip
                 ft.Container(
                     content=ft.Column(
                         controls=[
                             ft.Container(
                                 height=height,
-                                width=25,
+                                width=50,  # Aumentado para barras más anchas
                                 bgcolor=color,
-                                border_radius=ft.border_radius.only(top_left=4, top_right=4),
+                                border_radius=ft.border_radius.all(8),
                                 shadow=ft.BoxShadow(
-                                    spread_radius=1,
-                                    blur_radius=4,
+                                    spread_radius=2,
+                                    blur_radius=8,
                                     color=ft.Colors.BLUE_200
-                                )
+                                ),
+                                tooltip=formatted_amount  # Tooltip con el valor formateado
                             ),
                             # Base of the bar
                             ft.Container(
-                                height=5,
-                                width=35,
+                                height=6,
+                                width=60,  # Aumentado para coincidir con la barra
                                 bgcolor=ft.Colors.BLUE_300,
-                                border_radius=ft.border_radius.only(bottom_left=6, bottom_right=6)
+                                border_radius=ft.border_radius.all(10)
                             )
                         ],
                         spacing=0,
                         alignment=ft.MainAxisAlignment.END
                     ),
-                    height=height + 5,
+                    height=height + 6,
                     alignment=ft.alignment.bottom_center
                 ),
                 # Day label
                 ft.Container(
-                    content=ft.Text(day, size=11, weight=ft.FontWeight.BOLD, color=ft.Colors.BLUE_GREY_700 if not self.dark_mode else ft.Colors.BLUE_GREY_300),
-                    height=25,
+                    content=ft.Text(day, size=13, weight=ft.FontWeight.BOLD, color=ft.Colors.BLUE_GREY_800 if not self.dark_mode else ft.Colors.BLUE_GREY_300),
+                    height=28,
                     alignment=ft.alignment.center
                 )
             ],
-            spacing=2,
+            spacing=4,
             alignment=ft.MainAxisAlignment.END
         ),
-        height=height + 50,
+        height=height + 38,  # Ajustado ya que quitamos el texto encima
         alignment=ft.alignment.bottom_center
     )
 
@@ -117,32 +115,82 @@ def create_mini_metric(self, label, value, color):
         width=100
     )
 
-def create_sales_chart(app):
+import datetime
+
+def create_sales_chart(app, view_type="monthly"):
     """Create an enhanced sales chart with real data from database"""
-    # Obtener datos reales de ventas de los últimos 7 días
-    datos_ventas = app.venta_controller.get_datos_grafico_ventas(dias=7)
+    today = datetime.date.today()
+    year_start = datetime.date(today.year, 1, 1)
+    days_passed = (today - year_start).days + 1  # inclusive
+
+    if view_type == "weekly":
+        # Obtener datos del año completo
+        datos_ventas = app.venta_controller.get_datos_grafico_ventas(dias=days_passed)
+        # Agrupar por semanas (semana 1 a semana N)
+        ventas_agrupadas = []
+        semanas_totales = (days_passed + 6) // 7  # número de semanas completas o parciales
+        for i in range(semanas_totales):
+            semana_sum = sum(datos_ventas[i*7:(i+1)*7])
+            ventas_agrupadas.append(semana_sum)
+        # Etiquetas de semanas
+        period_labels = [f"Sem {i+1}" for i in range(semanas_totales)]
+        period_name = "semanal"
+        total_label = "Total Semana"
+        comparison_text = "vs semana anterior"
+        metric_label = "Mejor Semana"
+    else:  # monthly
+        # Obtener datos del año completo
+        datos_ventas = app.venta_controller.get_datos_grafico_ventas(dias=days_passed)
+        ventas_agrupadas = []
+        # Agrupar por meses
+        month_days = [31, 29 if (today.year % 4 == 0 and (today.year % 100 != 0 or today.year % 400 == 0)) else 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+        month_labels = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"]
+        start_idx = 0
+        for md in month_days:
+            if start_idx >= len(datos_ventas):
+                ventas_agrupadas.append(0)
+            else:
+                ventas_agrupadas.append(sum(datos_ventas[start_idx:start_idx+md]))
+            start_idx += md
+        # Ajustar etiquetas para meses con datos
+        period_labels = month_labels[:len(ventas_agrupadas)]
+        period_name = "mensual"
+        total_label = "Total Mes"
+        comparison_text = "vs mes anterior"
+        metric_label = "Mejor Mes"
 
     # Calcular estadísticas
-    total_semana = sum(datos_ventas)
-    promedio_diario = total_semana / len(datos_ventas) if datos_ventas else 0
-    max_venta = max(datos_ventas) if datos_ventas else 0
-    mejor_dia_idx = datos_ventas.index(max_venta) if datos_ventas and max_venta > 0 else 0
+    total_periodo = sum(ventas_agrupadas) if ventas_agrupadas else 0
+    promedio_periodo = total_periodo / len(ventas_agrupadas) if ventas_agrupadas else 0
+    max_venta = max(ventas_agrupadas) if ventas_agrupadas else 0
+    mejor_periodo_idx = ventas_agrupadas.index(max_venta) if ventas_agrupadas and max_venta > 0 else 0
+    mejor_periodo = period_labels[mejor_periodo_idx] if ventas_agrupadas else "N/A"
 
-    dias_semana = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"]
-    mejor_dia = dias_semana[mejor_dia_idx] if datos_ventas else "N/A"
+    # Calcular promedio diario basado en los datos diarios (para métricas adicionales)
+    promedio_diario = sum(datos_ventas) / len(datos_ventas) if datos_ventas else 0
 
     # Calcular altura máxima para las barras (normalizar)
-    max_altura = 150
-    max_valor = max(datos_ventas) if datos_ventas else 1
+    max_altura = 250
+    max_valor = max(ventas_agrupadas) if ventas_agrupadas else 1
+
+    # Ajustar factor de escala para evitar barras demasiado altas
+    escala = 1.0
+    if max_valor > 10000000:
+        escala = 0.5
+    elif max_valor > 5000000:
+        escala = 0.7
+    elif max_valor > 1000000:
+        escala = 0.9
 
     # Crear barras del gráfico
     barras = []
     colores = [ft.Colors.BLUE_500, ft.Colors.BLUE_600, ft.Colors.BLUE_500,
-              ft.Colors.BLUE_700, ft.Colors.BLUE_600, ft.Colors.BLUE_700, ft.Colors.BLUE_500]
+              ft.Colors.BLUE_700, ft.Colors.BLUE_600, ft.Colors.BLUE_700, ft.Colors.BLUE_500,
+              ft.Colors.BLUE_400, ft.Colors.BLUE_500, ft.Colors.BLUE_600, ft.Colors.BLUE_700, ft.Colors.BLUE_500]
 
-    for i, (dia, valor) in enumerate(zip(dias_semana, datos_ventas)):
-        altura = int((valor / max_valor) * max_altura) if max_valor > 0 else 0
-        barras.append(create_enhanced_bar(app, dia, valor, altura, colores[i]))
+    for i, (periodo, valor) in enumerate(zip(period_labels[:len(ventas_agrupadas)], ventas_agrupadas)):
+        altura = int((valor / max_valor) * max_altura * escala) if max_valor > 0 else 0
+        barras.append(create_enhanced_bar(app, periodo, valor, altura, colores[i % len(colores)]))
 
     return ft.Container(
         content=ft.Column(
@@ -153,7 +201,7 @@ def create_sales_chart(app):
                         ft.Column(
                             controls=[
                                 ft.Text("📈 Análisis de Ventas Detallado", size=18, weight=ft.FontWeight.BOLD),
-                                ft.Text("Tendencia semanal con métricas clave", size=12, color=ft.Colors.BLUE_GREY_600 if not app.dark_mode else ft.Colors.BLUE_GREY_400),
+                                ft.Text(f"Tendencia {period_name} con métricas clave", size=12, color=ft.Colors.BLUE_GREY_600 if not app.dark_mode else ft.Colors.BLUE_GREY_400),
                             ],
                             spacing=2,
                             alignment=ft.MainAxisAlignment.START,
@@ -162,8 +210,8 @@ def create_sales_chart(app):
                         ft.Container(
                             content=ft.Column(
                                 controls=[
-                                    ft.Text(f"${total_semana:.2f}", size=20, weight=ft.FontWeight.BOLD, color=ft.Colors.GREEN),
-                                    ft.Text("Total Semana", size=10, color=ft.Colors.BLUE_GREY_500),
+                                    ft.Text(f"${total_periodo:.2f}", size=20, weight=ft.FontWeight.BOLD, color=ft.Colors.GREEN),
+                                    ft.Text(total_label, size=10, color=ft.Colors.BLUE_GREY_500),
                                 ],
                                 spacing=2,
                                 alignment=ft.MainAxisAlignment.END
@@ -184,10 +232,10 @@ def create_sales_chart(app):
                             ft.Container(
                                 content=ft.Row(
                                     controls=barras,
-                                    spacing=12,
+                                    spacing=15 if view_type == "monthly" else 20,
                                     alignment=ft.MainAxisAlignment.CENTER
                                 ),
-                                height=200,
+                                height=280,
                                 alignment=ft.alignment.center
                             ),
                             # Trend indicators
@@ -199,7 +247,7 @@ def create_sales_chart(app):
                                                 controls=[
                                                     ft.Icon(ft.Icons.TRENDING_UP, size=16, color=ft.Colors.GREEN),
                                                     ft.Text("+18.5%", size=12, weight=ft.FontWeight.BOLD, color=ft.Colors.GREEN),
-                                                    ft.Text("vs semana anterior", size=10, color=ft.Colors.BLUE_GREY_600 if not app.dark_mode else ft.Colors.BLUE_GREY_400),
+                                                    ft.Text(comparison_text, size=10, color=ft.Colors.BLUE_GREY_600 if not app.dark_mode else ft.Colors.BLUE_GREY_400),
                                                 ],
                                                 spacing=5,
                                                 alignment=ft.MainAxisAlignment.START
@@ -212,7 +260,7 @@ def create_sales_chart(app):
                                             content=ft.Row(
                                                 controls=[
                                                     ft.Icon(ft.Icons.STAR, size=16, color=ft.Colors.ORANGE),
-                                                    ft.Text(f"{mejor_dia} pico", size=12, weight=ft.FontWeight.BOLD, color=ft.Colors.ORANGE),
+                                                    ft.Text(f"{mejor_periodo} pico", size=12, weight=ft.FontWeight.BOLD, color=ft.Colors.ORANGE),
                                                     ft.Text(f"${max_venta:.2f}", size=10, color=ft.Colors.BLUE_GREY_600 if not app.dark_mode else ft.Colors.BLUE_GREY_400),
                                                 ],
                                                 spacing=5,
@@ -233,7 +281,7 @@ def create_sales_chart(app):
                                 content=ft.Row(
                                     controls=[
                                         create_mini_metric(app, "Promedio Diario", f"${promedio_diario:.2f}", ft.Colors.BLUE),
-                                        create_mini_metric(app, "Mejor Día", mejor_dia, ft.Colors.GREEN),
+                                        create_mini_metric(app, metric_label, mejor_periodo, ft.Colors.GREEN),
                                         create_mini_metric(app, "Transacciones", str(sum(1 for v in datos_ventas if v > 0)), ft.Colors.PURPLE),
                                     ],
                                     spacing=15,
@@ -244,7 +292,7 @@ def create_sales_chart(app):
                         ],
                         spacing=15
                     ),
-                    height=280,
+                    height=350,
                     alignment=ft.alignment.center
                 )
             ],
@@ -433,6 +481,13 @@ def build_dashboard(app):
     clientes_atendidos = app.venta_controller.get_clientes_atendidos_hoy()
     valor_inventario = app.venta_controller.get_valor_inventario()
 
+    # Contenedor para el gráfico mensual
+    chart_container = ft.Container(
+        content=create_sales_chart(app, "monthly"),
+        height=400,
+        alignment=ft.alignment.center
+    )
+
     return ft.Container(
         content=ft.Column(
             controls=[
@@ -553,7 +608,7 @@ def build_dashboard(app):
                                 controls=[
                                     ft.Text("📊 Análisis de Rendimiento", size=24, weight=ft.FontWeight.BOLD),
                                     ft.Container(
-                                        content=ft.Text("Últimos 30 días", size=12, color=ft.Colors.BLUE_GREY_600),
+                                        content=ft.Text("Año actual", size=12, color=ft.Colors.BLUE_GREY_600),
                                         bgcolor=ft.Colors.BLUE_GREY_100 if not app.dark_mode else ft.Colors.BLUE_GREY_800,
                                         padding=ft.padding.symmetric(horizontal=12, vertical=6),
                                         border_radius=15
@@ -570,11 +625,7 @@ def build_dashboard(app):
                                         content=ft.Column(
                                             controls=[
                                                 ft.Text("Tendencia de Ventas", size=18, weight=ft.FontWeight.BOLD),
-                                                ft.Container(
-                                                    content=create_sales_chart(app),
-                                                    height=400,
-                                                    alignment=ft.alignment.center
-                                                )
+                                                chart_container
                                             ],
                                             spacing=15
                                         ),
@@ -646,7 +697,7 @@ def build_dashboard(app):
                                                     color=ft.Colors.WHITE,
                                                     elevation=2
                                                 ),
-                                                on_click=lambda e: app.change_view("ventas")
+                                                on_click=lambda e: app.change_view("facturas")
                                             ),
                                             ft.ElevatedButton(
                                                 "Exportar",
