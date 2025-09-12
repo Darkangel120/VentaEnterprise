@@ -35,5 +35,23 @@ def create_tables():
             FOREIGN KEY (producto_id) REFERENCES productos (id)
         )
     ''')
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS facturas (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            fecha TEXT NOT NULL,
+            total REAL NOT NULL
+        )
+    ''')
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS detalle_factura (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            factura_id INTEGER,
+            producto_id INTEGER,
+            cantidad INTEGER,
+            precio REAL,
+            FOREIGN KEY (factura_id) REFERENCES facturas (id),
+            FOREIGN KEY (producto_id) REFERENCES productos (id)
+        )
+    ''')
     conn.commit()
     conn.close()

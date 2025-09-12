@@ -1,6 +1,6 @@
 import flet as ft
 from datetime import datetime
-from ..controllers.controllers import ProductoController, VentaController
+from ..controllers.controllers import ProductoController, VentaController, FacturaController
 from ..utils.exchange_rate import ExchangeRateService
 from .ventas_view import build_ventas_view
 from .productos_view import build_productos_view
@@ -33,6 +33,7 @@ class VentaEnterpriseApp:
 
         # Theme setup
         self.page.theme_mode = ft.ThemeMode.DARK if self.dark_mode else ft.ThemeMode.LIGHT
+
         self.page.update()
 
         # Load initial data
@@ -558,62 +559,89 @@ class VentaEnterpriseApp:
     def finalizar_venta(self, e):
         if not self.carrito:
             return
-        
+
         try:
             fecha = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             total = sum(item['subtotal'] for item in self.carrito)
             detalles = []
-            
+
             # Primero verificar que haya suficiente stock para todos los productos
             for item in self.carrito:
                 producto = item['producto']  # Este es el objeto Producto
                 cantidad = item['cantidad']
-                
+
                 if cantidad > producto.stock:
                     raise ValueError(f"Stock insuficiente para {producto.nombre}. Stock actual: {producto.stock}, Cantidad solicitada: {cantidad}")
-            
+
             # Si todo está bien, procesar la venta
             for item in self.carrito:
                 producto = item['producto']  # Este es el objeto Producto
                 cantidad = item['cantidad']
                 precio = item['precio']
-                
+
                 # Actualizar el stock del producto
                 self.producto_controller.update_producto_stock(producto.id, producto.stock - cantidad)
-                
+
                 # Agregar al detalle de la venta
                 detalles.append({
-                    'producto_id': producto.id, 
-                    'cantidad': cantidad, 
+                    'producto_id': producto.id,
+                    'cantidad': cantidad,
                     'precio': precio
                 })
-            
+
             # Registrar la venta
-            self.venta_controller.registrar_venta(fecha, total, detalles)
-            
+            venta_id = self.venta_controller.registrar_venta(fecha, total, detalles)
+
+            # Crear factura automáticamente
+            factura_controller = FacturaController()
+            # Sin datos de cliente
+            factura_id = factura_controller.crear_factura(fecha, total, detalles)
+
             # Limpiar el carrito
             self.carrito.clear()
             self.update_carrito()
-            
-            # Mostrar mensaje de éxito
+
+            # Preguntar si quiere imprimir la factura
+            def imprimir_factura(e):
+                self.page.dialog.open = False
+                # Generar PDF
+                from .factura_view import generar_pdf_factura
+                factura = factura_controller.get_by_id(factura_id)
+                if factura:
+                    archivo_pdf = generar_pdf_factura(factura)
+                    self.page.snack_bar = ft.SnackBar(
+                        content=ft.Text(f"Factura exportada a PDF: {archivo_pdf}"),
+                        bgcolor=ft.Colors.GREEN_600
+                    )
+                    self.page.snack_bar.open = True
+                self.page.update()
+
+            def cerrar_dialogo(e):
+                self.page.dialog.open = False
+                self.page.update()
+
+            # Mostrar diálogo preguntando si imprimir
             self.page.dialog = ft.AlertDialog(
-                title=ft.Text("✅ Venta Finalizada"), 
-                content=ft.Text(f"Total: ${total:.2f}\nVenta registrada exitosamente."), 
-                actions=[ft.TextButton("Cerrar", on_click=lambda e: self.page.dialog.close())]
+                title=ft.Text("✅ Venta Finalizada"),
+                content=ft.Text(f"Total: ${total:.2f}\nFactura #{factura_id} creada exitosamente.\n\n¿Desea imprimir la factura?"),
+                actions=[
+                    ft.TextButton("No", on_click=cerrar_dialogo),
+                    ft.ElevatedButton("Sí, Imprimir", on_click=imprimir_factura, style=ft.ButtonStyle(bgcolor=ft.Colors.BLUE))
+                ]
             )
             self.page.dialog.open = True
-            
+
             # Recargar productos para reflejar los nuevos stocks
             self.load_productos()
-            
+
         except Exception as ex:
             self.page.dialog = ft.AlertDialog(
-                title=ft.Text("❌ Error"), 
-                content=ft.Text(str(ex)), 
+                title=ft.Text("❌ Error"),
+                content=ft.Text(str(ex)),
                 actions=[ft.TextButton("Cerrar", on_click=lambda e: self.page.dialog.close())]
             )
             self.page.dialog.open = True
-        
+
         self.page.update()
 
     def load_productos(self):
@@ -1020,6 +1048,8 @@ class VentaEnterpriseApp:
         # Update the product list container with filtered products
         self.product_list_container.content = create_productos_grid(self, filtered_products)
         self.page.update()
+
+
 
 
 def main(page: ft.Page):

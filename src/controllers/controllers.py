@@ -1,4 +1,4 @@
-from ..models.models import Producto, Venta
+from ..models.models import Producto, Venta, Factura
 from ..database import create_connection
 from ..utils.exchange_rate import ExchangeRateService
 from datetime import datetime, timedelta
@@ -305,3 +305,30 @@ class VentaController:
             'total_ventas': total_ventas,
             'promedio_venta': promedio_venta
         }
+
+class FacturaController:
+    def __init__(self):
+        pass
+
+    def get_all(self):
+        return Factura.get_all()
+
+    def get_by_id(self, id):
+        return Factura.get_by_id(id)
+
+    def crear_factura(self, fecha, total, detalles):
+        f = Factura(fecha=fecha, total=total, detalles=detalles)
+        f.save()
+        return f
+
+    def actualizar_factura(self, id, fecha, total):
+        f = Factura.get_by_id(id)
+        if f:
+            f.fecha = fecha
+            f.total = total
+            f.save()
+
+    def eliminar_factura(self, id):
+        f = Factura.get_by_id(id)
+        if f:
+            f.delete()
