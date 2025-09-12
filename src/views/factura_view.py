@@ -5,21 +5,23 @@ from ..controllers.controllers import FacturaController
 factura_controller = FacturaController()
 
 def build_factura_view(app):
-    # Variables de estado - almacenadas en el contexto de la app
+    # Initialize UI components following ventas_view pattern
     app.facturas_list = []
     app.selected_factura = None
     app.facturas_search_text = ""
 
-    # Componentes de la interfaz
-    search_field = ft.TextField(
+    # Search field
+    app.facturas_search_field = ft.TextField(
         label="Buscar facturas...",
         prefix_icon=ft.Icons.SEARCH,
         width=300,
+        border_radius=10,
+        bgcolor=ft.Colors.WHITE if not app.dark_mode else ft.Colors.BLUE_GREY_800,
         on_change=lambda e: filtrar_facturas(app)
     )
 
-    # Lista de facturas con cards modernas
-    facturas_grid = ft.GridView(
+    # Facturas grid
+    app.facturas_grid = ft.GridView(
         runs_count=3,
         max_extent=400,
         child_aspect_ratio=1.5,
@@ -35,7 +37,7 @@ def build_factura_view(app):
 
     def filtrar_facturas(app_instance):
         """Filtrar facturas según búsqueda"""
-        search_text = search_field.value.lower() if search_field.value else ""
+        search_text = app.facturas_search_field.value.lower() if app.facturas_search_field.value else ""
         app_instance.facturas_search_text = search_text
 
         facturas_filtradas = []
@@ -60,7 +62,7 @@ def build_factura_view(app):
 
     def update_facturas_grid(app_instance, facturas_list):
         """Actualizar el grid de facturas"""
-        facturas_grid.controls.clear()
+        app.facturas_grid.controls.clear()
 
         for f in facturas_list:
             # Determinar si esta factura está seleccionada
@@ -154,7 +156,7 @@ def build_factura_view(app):
                 on_double_tap=lambda e, fact=f: doble_clic_factura(app_instance, fact)
             )
             
-            facturas_grid.controls.append(clickable_card)
+            app.facturas_grid.controls.append(clickable_card)
 
         app_instance.page.update()
 
@@ -181,7 +183,7 @@ def build_factura_view(app):
             ft.Container(
                 content=ft.Row(
                     controls=[
-                        search_field
+                        app.facturas_search_field
                     ],
                     spacing=15,
                     alignment=ft.MainAxisAlignment.START
@@ -205,7 +207,7 @@ def build_factura_view(app):
                             alignment=ft.MainAxisAlignment.SPACE_BETWEEN
                         ),
                         ft.Container(
-                            content=facturas_grid,
+                            content=app.facturas_grid,
                             padding=ft.padding.symmetric(vertical=10)
                         )
                     ],
