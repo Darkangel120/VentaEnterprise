@@ -46,8 +46,8 @@ def export_reportes_excel(app, e):
             app.page.update()
             return
 
-        # Create exports directory if it doesn't exist
-        export_dir = "exports"
+        # Create exports directory if it doesn't exist outside the exe
+        export_dir = os.path.join(os.path.expanduser("~"), "VentaEnterprise_exports")
         if not os.path.exists(export_dir):
             os.makedirs(export_dir)
 

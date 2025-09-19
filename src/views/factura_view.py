@@ -260,7 +260,11 @@ def build_factura_view(app):
 
                 # Encabezado
                 import os
-                logo_path = os.path.join(os.getcwd(), "VP-logo.png")
+                import sys
+                if getattr(sys, 'frozen', False):
+                    logo_path = os.path.join(sys._MEIPASS, "VP-logo.png")
+                else:
+                    logo_path = os.path.join(os.getcwd(), "VP-logo.png")
                 if os.path.exists(logo_path):
                     pdf.image(logo_path, x=10, y=8, w=15, h=15)
                     pdf.set_xy(30, 10)
@@ -313,8 +317,8 @@ def build_factura_view(app):
                 pdf.cell(30, 10, f"{total_usd:.2f} $", 0, align='R')
                 pdf.ln()
 
-                # Crear carpeta si no existe
-                carpeta = "facturas_pdf"
+                # Crear carpeta si no existe fuera del exe
+                carpeta = os.path.join(os.path.expanduser("~"), "VentaEnterprise_facturas_pdf")
                 if not os.path.exists(carpeta):
                     os.makedirs(carpeta)
 

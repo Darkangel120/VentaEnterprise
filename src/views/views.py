@@ -16,10 +16,8 @@ class VentaEnterpriseApp:
         self.page.title = "VentaEnterprise"
 
         # Crear carpeta oculta si no existe
-        self.hidden_dir = ".ventaenterprise"
+        self.hidden_dir = os.path.join(os.path.expanduser("~"), ".ventaenterprise")
         os.makedirs(self.hidden_dir, exist_ok=True)
-        import subprocess
-        subprocess.run(['attrib', '+h', self.hidden_dir], shell=True)
 
         self.dark_mode = self.load_dark_mode_preference()
         self.page.theme_mode = ft.ThemeMode.DARK if self.dark_mode else ft.ThemeMode.LIGHT

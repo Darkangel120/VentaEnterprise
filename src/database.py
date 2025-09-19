@@ -2,12 +2,14 @@ import sqlite3
 import os
 
 def create_connection():
-    hidden_dir = ".ventaenterprise"
+    hidden_dir = os.path.join(os.path.expanduser("~"), ".ventaenterprise")
     db_path = os.path.join(hidden_dir, 'ventaenterprise.db')
     conn = sqlite3.connect(db_path)
     return conn
 
-def create_tables(hidden_dir=".ventaenterprise"):
+def create_tables(hidden_dir=None):
+    if hidden_dir is None:
+        hidden_dir = os.path.join(os.path.expanduser("~"), ".ventaenterprise")
     if not os.path.exists(hidden_dir):
         os.makedirs(hidden_dir)
     db_path = os.path.join(hidden_dir, 'ventaenterprise.db')
