@@ -1,5 +1,141 @@
 import flet as ft
 
+def sort_table_by(app, criteria):
+    """Sort the reportes table by the specified criteria"""
+    try:
+        # Set the sort criteria in the app
+        app.sort_criteria = criteria
+
+        # Update the view with sorted data
+        app.main_column.controls[0] = app.build_main_content()
+        app.page.update()
+
+        # Show success message
+        app.page.snack_bar = ft.SnackBar(
+            content=ft.Text(f"Tabla ordenada por {criteria}"),
+            bgcolor=ft.Colors.GREEN_600
+        )
+        app.page.snack_bar.open = True
+        app.page.update()
+
+    except Exception as e:
+        print(f"Error sorting table: {e}")
+        app.page.snack_bar = ft.SnackBar(
+            content=ft.Text("Error al ordenar la tabla"),
+            bgcolor=ft.Colors.RED_600
+        )
+        app.page.snack_bar.open = True
+        app.page.update()
+
+def export_reportes_excel(app, e):
+    """Export reportes data to Excel file"""
+    try:
+        import os
+        from datetime import datetime
+        import openpyxl
+        from openpyxl.styles import Font, Alignment, PatternFill
+
+        estadisticas = app.venta_controller.get_estadisticas_reportes()
+
+        if not estadisticas['productos_mas_vendidos']:
+            app.page.snack_bar = ft.SnackBar(
+                content=ft.Text("No hay datos para exportar"),
+                bgcolor=ft.Colors.ORANGE_600
+            )
+            app.page.snack_bar.open = True
+            app.page.update()
+            return
+
+        # Create exports directory if it doesn't exist
+        export_dir = "exports"
+        if not os.path.exists(export_dir):
+            os.makedirs(export_dir)
+
+        # Generate filename with timestamp
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"{export_dir}/reportes_ventas_{timestamp}.xlsx"
+
+        # Create workbook and sheet
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = "Reporte Ventas"
+
+        # Define headers
+        headers = ['Producto', 'Ventas', 'Ingresos', 'Precio Promedio', 'Stock Restante', 'Porcentaje Ventas', 'Porcentaje Ingresos']
+        ws.append(headers)
+
+        # Apply styles to header
+        header_font = Font(bold=True, color="FFFFFF")
+        header_fill = PatternFill(start_color="4F81BD", end_color="4F81BD", fill_type="solid")
+        for col_num, column_title in enumerate(headers, 1):
+            cell = ws.cell(row=1, column=col_num)
+            cell.font = header_font
+            cell.fill = header_fill
+            cell.alignment = Alignment(horizontal="center")
+
+        total_ventas = sum(cantidad for _, cantidad, _ in estadisticas['productos_mas_vendidos'])
+        total_ingresos = sum(ingresos for _, _, ingresos in estadisticas['productos_mas_vendidos'])
+
+        # Write data rows
+        for producto in estadisticas['productos_mas_vendidos']:
+            nombre, cantidad, ingresos = producto
+
+            # Get stock info
+            producto_info = next((p for p in app.productos if p.nombre == nombre), None)
+            stock_restante = producto_info.stock if producto_info else 0
+            precio_promedio = ingresos / cantidad if cantidad > 0 else 0
+
+            porcentaje_ventas = (cantidad / total_ventas * 100) if total_ventas > 0 else 0
+            porcentaje_ingresos = (ingresos / total_ingresos * 100) if total_ingresos > 0 else 0
+
+            ws.append([
+                nombre,
+                cantidad,
+                ingresos,
+                round(precio_promedio, 2),
+                stock_restante,
+                f"{porcentaje_ventas:.1f}%",
+                f"{porcentaje_ingresos:.1f}%"
+            ])
+
+        # Add summary row
+        ws.append([])
+        ws.append([
+            'TOTAL',
+            total_ventas,
+            total_ingresos,
+            '',
+            '',
+            '100.0%',
+            '100.0%'
+        ])
+
+        # Adjust column widths
+        column_widths = [30, 10, 15, 18, 15, 18, 18]
+        for i, width in enumerate(column_widths, 1):
+            ws.column_dimensions[openpyxl.utils.get_column_letter(i)].width = width
+
+        # Save workbook
+        wb.save(filename)
+
+        # Show success message with file path
+        app.page.snack_bar = ft.SnackBar(
+            content=ft.Text(f"Archivo Excel exportado: {filename}"),
+            bgcolor=ft.Colors.GREEN_600,
+            duration=5000
+        )
+        app.page.snack_bar.open = True
+        app.page.update()
+
+    except Exception as e:
+        print(f"Error exporting Excel: {e}")
+        app.page.snack_bar = ft.SnackBar(
+            content=ft.Text("Error al exportar archivo Excel"),
+            bgcolor=ft.Colors.RED_600
+        )
+        app.page.snack_bar.open = True
+        app.page.update()
+
 def get_color_with_opacity(color, opacity):
     """Convertir un color de Flet a uno con opacidad"""
     if color == ft.Colors.GREEN:
@@ -64,6 +200,13 @@ def create_metric_card(app, title, value, color, icon):
 def build_reportes_view(app):
     # Obtener datos reales de la base de datos
     estadisticas = app.venta_controller.get_estadisticas_reportes()
+
+    # Aplicar ordenamiento si está configurado
+    if hasattr(app, 'sort_criteria') and app.sort_criteria:
+        if app.sort_criteria == "ventas":
+            estadisticas['productos_mas_vendidos'].sort(key=lambda x: x[1], reverse=True)
+        elif app.sort_criteria == "ingresos":
+            estadisticas['productos_mas_vendidos'].sort(key=lambda x: x[2], reverse=True)
 
     # Crear métricas dinámicas mejoradas
     metricas = []
@@ -179,30 +322,34 @@ def build_reportes_view(app):
 
     # Controles de filtro y ordenamiento
     filter_controls = ft.Container(
-        content=ft.Row(
+        content=ft.Column(
             controls=[
-                ft.Text("🔍 Filtros:", size=16, weight=ft.FontWeight.BOLD, color=ft.Colors.WHITE if app.dark_mode else ft.Colors.BLACK),
-                ft.ElevatedButton(
-                    "Ordenar por Ventas",
-                    icon=ft.Icons.SORT,
-                    on_click=lambda e: app.sort_table_by("ventas"),
-                    style=ft.ButtonStyle(bgcolor=ft.Colors.BLUE_600, color=ft.Colors.WHITE)
-                ),
-                ft.ElevatedButton(
-                    "Ordenar por Ingresos",
-                    icon=ft.Icons.SORT,
-                    on_click=lambda e: app.sort_table_by("ingresos"),
-                    style=ft.ButtonStyle(bgcolor=ft.Colors.GREEN_600, color=ft.Colors.WHITE)
-                ),
-                ft.ElevatedButton(
-                    "Exportar CSV",
-                    icon=ft.Icons.DOWNLOAD,
-                    on_click=app.export_reportes_csv,
-                    style=ft.ButtonStyle(bgcolor=ft.Colors.ORANGE_600, color=ft.Colors.WHITE)
-                ),
+                ft.Row(
+                    controls=[
+                        ft.ElevatedButton(
+                            "Ordenar por Ventas",
+                            icon=ft.Icons.SORT,
+                            on_click=lambda e: sort_table_by(app, "ventas"),
+                            style=ft.ButtonStyle(bgcolor=ft.Colors.BLUE_600, color=ft.Colors.WHITE)
+                        ),
+                        ft.ElevatedButton(
+                            "Ordenar por Ingresos",
+                            icon=ft.Icons.SORT,
+                            on_click=lambda e: sort_table_by(app, "ingresos"),
+                            style=ft.ButtonStyle(bgcolor=ft.Colors.GREEN_600, color=ft.Colors.WHITE)
+                        ),
+                        ft.ElevatedButton(
+                            "Exportar Excel",
+                            icon=ft.Icons.DOWNLOAD,
+                            on_click=lambda e: export_reportes_excel(app, e),
+                            style=ft.ButtonStyle(bgcolor=ft.Colors.ORANGE_600, color=ft.Colors.WHITE)
+                        ),
+                    ],
+                    spacing=15,
+                    alignment=ft.MainAxisAlignment.START
+                )
             ],
-            spacing=15,
-            alignment=ft.MainAxisAlignment.START
+            spacing=10
         ),
         padding=ft.padding.symmetric(vertical=10)
     )
@@ -287,7 +434,6 @@ def build_reportes_view(app):
                                 ],
                                 rows=table_rows,
                                 expand=True,
-                                height=600,
                                 border_radius=15,
                                 heading_row_height=60,
                                 data_row_min_height=55,
@@ -297,6 +443,7 @@ def build_reportes_view(app):
                                     "hovered": ft.Colors.BLUE_GREY_50 if not app.dark_mode else ft.Colors.BLUE_GREY_800
                                 }
                             ),
+                            expand=True,
                             padding=25,
                             bgcolor=ft.Colors.WHITE if not app.dark_mode else ft.Colors.BLUE_GREY_900,
                             border_radius=20,
@@ -351,7 +498,8 @@ def build_reportes_view(app):
             )
         ],
         spacing=0,
-        scroll=ft.ScrollMode.AUTO
+        scroll=ft.ScrollMode.AUTO,
+        expand=True
     )
 
 

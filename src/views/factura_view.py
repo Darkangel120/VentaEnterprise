@@ -27,7 +27,7 @@ def build_factura_view(app):
         child_aspect_ratio=1.5,
         spacing=10,
         run_spacing=10,
-        height=500
+        height=600
     )
 
     def load_facturas():
@@ -167,27 +167,23 @@ def build_factura_view(app):
     # Layout principal siguiendo el patrón de ventas
     content = ft.Column(
         controls=[
-            # Header simple
+            # Header con filtro en la esquina superior derecha
             ft.Container(
-                content=ft.Column(
-                    controls=[
-                        ft.Text("📄 Gestión de Facturas", size=32, weight=ft.FontWeight.BOLD),
-                        ft.Text("Sistema de facturación y gestión de ventas", size=16, color=ft.Colors.BLUE_GREY_600),
-                    ],
-                    spacing=5
-                ),
-                padding=ft.padding.only(bottom=10)
-            ),
-
-            # Barra de búsqueda
-            ft.Container(
-                content=ft.Row(
-                    controls=[
-                        app.facturas_search_field
-                    ],
-                    spacing=15,
-                    alignment=ft.MainAxisAlignment.START
-                ),
+                content=ft.Stack([
+                    # Título principal
+                    ft.Container(
+                        content=ft.Text("Facturas", size=32, weight=ft.FontWeight.BOLD),
+                        alignment=ft.alignment.top_left,
+                        padding=ft.padding.only(left=20, top=10)
+                    ),
+                    # Filtro en la esquina superior derecha
+                    ft.Container(
+                        content=app.facturas_search_field,
+                        alignment=ft.alignment.top_right,
+                        padding=ft.padding.only(right=20, top=10)
+                    )
+                ]),
+                height=80,
                 padding=ft.padding.symmetric(vertical=10)
             ),
 
@@ -208,7 +204,8 @@ def build_factura_view(app):
                         ),
                         ft.Container(
                             content=app.facturas_grid,
-                            padding=ft.padding.symmetric(vertical=10)
+                            padding=ft.padding.symmetric(vertical=10),
+                            height=500
                         )
                     ],
                     spacing=20
@@ -223,7 +220,7 @@ def build_factura_view(app):
                 )
             )
         ],
-        spacing=30,
+        spacing=20,
         scroll=ft.ScrollMode.AUTO
     )
 
@@ -262,27 +259,59 @@ def build_factura_view(app):
                 pdf.set_font("Arial", size=12)
 
                 # Encabezado
-                pdf.cell(200, 10, txt=f"VENTA ENTERPRISE - Factura #{factura.id:04d}", ln=True, align='C')
-                pdf.cell(200, 10, txt=f"Fecha: {factura.fecha}", ln=True)
-                pdf.ln(10)
+                import os
+                logo_path = os.path.join(os.getcwd(), "VP-logo.png")
+                if os.path.exists(logo_path):
+                    pdf.image(logo_path, x=10, y=8, w=15, h=15)
+                    pdf.set_xy(30, 10)
+                pdf.set_font("Arial", 'B', 14)
+                pdf.cell(0, 10, "VENTA ENTERPRISE", ln=1, align='L')
+                pdf.set_font("Arial", size=10)
+                pdf.cell(0, 10, f"Factura #{factura.id:04d}", ln=1, align='L')
+                pdf.cell(0, 10, f"Fecha: {factura.fecha}", ln=1, align='L')
+                pdf.ln(5)
 
-                # Detalles de productos
-                pdf.cell(40, 10, "Producto", 1)
-                pdf.cell(30, 10, "Cantidad", 1)
-                pdf.cell(40, 10, "Precio Unit.", 1)
-                pdf.cell(40, 10, "Subtotal", 1)
+                # Encabezados tabla productos
+                pdf.set_font("Arial", 'B', 12)
+                pdf.cell(70, 10, "Producto", 1)
+                pdf.cell(20, 10, "Cant.", 1, align='C')
+                pdf.cell(40, 10, "Precio Bs.", 1, align='R')
+                pdf.cell(40, 10, "Precio $", 1, align='R')
+                pdf.cell(30, 10, "Total Bs.", 1, align='R')
                 pdf.ln()
 
+                pdf.set_font("Arial", size=12)
+                total_bs = 0
+                total_usd = 0
+
                 for detalle in factura.detalles:
-                    pdf.cell(40, 10, detalle['nombre'], 1)
-                    pdf.cell(30, 10, str(detalle['cantidad']), 1)
-                    pdf.cell(40, 10, f"{detalle['precio']:.2f}", 1)
-                    subtotal = detalle['cantidad'] * detalle['precio']
-                    pdf.cell(40, 10, f"{subtotal:.2f}", 1)
+                    nombre = detalle['nombre']
+                    cantidad = detalle['cantidad']
+                    precio_bs = detalle['precio']
+                    # Suponiendo que el precio en dólares está en detalle['precio_usd'], si no, calcularlo
+                    precio_usd = detalle.get('precio_usd', round(precio_bs / 24.0, 2))  # Ejemplo tasa de cambio 24
+                    total_producto_bs = cantidad * precio_bs
+                    total_bs += total_producto_bs
+                    total_usd += cantidad * precio_usd
+
+                    pdf.cell(70, 10, nombre, 1)
+                    pdf.cell(20, 10, str(cantidad), 1, align='C')
+                    pdf.cell(40, 10, f"{precio_bs:.2f}", 1, align='R')
+                    pdf.cell(40, 10, f"{precio_usd:.2f}", 1, align='R')
+                    pdf.cell(30, 10, f"{total_producto_bs:.2f}", 1, align='R')
                     pdf.ln()
 
                 pdf.ln(10)
-                pdf.cell(200, 10, txt=f"Total: ${factura.total:.2f}", ln=True)
+                pdf.set_font("Arial", 'B', 12)
+                pdf.cell(170, 10, "Subtotal:", 0, align='R')
+                pdf.cell(30, 10, f"{total_bs:.2f} Bs.", 0, align='R')
+                pdf.ln()
+                pdf.cell(170, 10, "Total:", 0, align='R')
+                pdf.cell(30, 10, f"{total_bs:.2f} Bs.", 0, align='R')
+                pdf.ln()
+                pdf.cell(170, 10, "Total (USD):", 0, align='R')
+                pdf.cell(30, 10, f"{total_usd:.2f} $", 0, align='R')
+                pdf.ln()
 
                 # Crear carpeta si no existe
                 carpeta = "facturas_pdf"

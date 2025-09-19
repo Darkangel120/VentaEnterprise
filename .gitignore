@@ -2,5 +2,6 @@
 __pycache__/
 *.py[cod]
 *$py.class
-ventaenterprise.db
-exchange_rate_cache.json
+.ventaenterprise/
+exports/
+facturas_pdf

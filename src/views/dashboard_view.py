@@ -1,9 +1,10 @@
 import flet as ft
+from .reportes_view import get_color_with_opacity
 
 def create_professional_metric_card(app, title, value, color, icon, trend, subtitle):
     """Create a professional metric card with icon and trend indicator"""
     # Crear color de fondo con opacidad correcta
-    bg_color = app.get_color_with_opacity(color, 0.2)
+    bg_color = get_color_with_opacity(color, 0.2)
 
     return ft.Container(
         content=ft.Column(
@@ -306,7 +307,7 @@ def create_sales_chart(app, view_type="monthly"):
 def create_top_product_item_pro(app, name, price, sales, medal_color):
     """Create a top product item with medal icon"""
     # Crear color de fondo con opacidad correcta
-    bg_color = app.get_color_with_opacity(medal_color, 0.2)
+    bg_color = get_color_with_opacity(medal_color, 0.2)
 
     return ft.Container(
         content=ft.Row(
@@ -489,6 +490,7 @@ def build_dashboard(app):
     )
 
     return ft.Container(
+        expand=True,
         content=ft.Column(
             controls=[
                 # Header with gradient background

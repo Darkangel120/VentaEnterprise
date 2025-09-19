@@ -4,8 +4,8 @@ from datetime import datetime, timedelta
 import os
 
 class ExchangeRateService:
-    def __init__(self):
-        self.cache_file = "exchange_rate_cache.json"
+    def __init__(self, hidden_dir=".ventaenterprise"):
+        self.cache_file = os.path.join(hidden_dir, "exchange_rate_cache.json")
         self.cache_duration = timedelta(hours=1)  # Cache por 1 hora
         self.last_update = None
         self.rate = None

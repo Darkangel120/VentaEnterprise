@@ -1,11 +1,17 @@
 import sqlite3
+import os
 
 def create_connection():
-    conn = sqlite3.connect('ventaenterprise.db')
+    hidden_dir = ".ventaenterprise"
+    db_path = os.path.join(hidden_dir, 'ventaenterprise.db')
+    conn = sqlite3.connect(db_path)
     return conn
 
-def create_tables():
-    conn = create_connection()
+def create_tables(hidden_dir=".ventaenterprise"):
+    if not os.path.exists(hidden_dir):
+        os.makedirs(hidden_dir)
+    db_path = os.path.join(hidden_dir, 'ventaenterprise.db')
+    conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS productos (
