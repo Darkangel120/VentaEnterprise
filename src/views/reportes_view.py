@@ -1,4 +1,5 @@
 import flet as ft
+import sys
 
 def sort_table_by(app, criteria):
     """Sort the reportes table by the specified criteria"""
@@ -46,8 +47,8 @@ def export_reportes_excel(app, e):
             app.page.update()
             return
 
-        # Create exports directory if it doesn't exist outside the exe
-        export_dir = os.path.join(os.path.expanduser("~"), "VentaEnterprise_exports")
+        # Create exports directory if it doesn't exist in the exe folder
+        export_dir = os.path.join(os.path.dirname(sys.executable), "VentaEnterprise_exports")
         if not os.path.exists(export_dir):
             os.makedirs(export_dir)
 

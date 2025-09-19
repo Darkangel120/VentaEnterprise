@@ -26,6 +26,23 @@ class ProductoController:
         conn.close()
 
     def delete_producto(self, id):
+        # Check if product is used in any sales or invoices
+        conn = create_connection()
+        cursor = conn.cursor()
+
+        # Check detalle_venta
+        cursor.execute('SELECT COUNT(*) FROM detalle_venta WHERE producto_id = ?', (id,))
+        ventas_count = cursor.fetchone()[0]
+
+        # Check detalle_factura
+        cursor.execute('SELECT COUNT(*) FROM detalle_factura WHERE producto_id = ?', (id,))
+        facturas_count = cursor.fetchone()[0]
+
+        conn.close()
+
+        if ventas_count > 0 or facturas_count > 0:
+            raise ValueError("No se puede eliminar el producto porque está siendo usado en ventas o facturas existentes.")
+
         p = Producto(id=id)
         p.delete()
 

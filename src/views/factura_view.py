@@ -317,8 +317,8 @@ def build_factura_view(app):
                 pdf.cell(30, 10, f"{total_usd:.2f} $", 0, align='R')
                 pdf.ln()
 
-                # Crear carpeta si no existe fuera del exe
-                carpeta = os.path.join(os.path.expanduser("~"), "VentaEnterprise_facturas_pdf")
+                # Crear carpeta si no existe en la carpeta del exe
+                carpeta = os.path.join(os.path.dirname(sys.executable), "VentaEnterprise_facturas_pdf")
                 if not os.path.exists(carpeta):
                     os.makedirs(carpeta)
 

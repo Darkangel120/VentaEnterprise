@@ -14,8 +14,7 @@ def update_productos_table(app):
     app.productos_list.rows.clear()
     for producto in app.productos:
         # Calculate USD price from VES price
-        exchange_service = ExchangeRateService()
-        rate = exchange_service.get_dollar_rate()
+        rate = app.exchange_rate_service.get_dollar_rate()
         precio_usd = producto.precio / rate if rate else 0
 
         app.productos_list.rows.append(
@@ -38,8 +37,7 @@ def on_row_selected(app, producto):
     app.nombre.value = producto.nombre
 
     # Calculate USD price from VES price for editing
-    exchange_service = ExchangeRateService()
-    rate = exchange_service.get_dollar_rate()
+    rate = app.exchange_rate_service.get_dollar_rate()
     precio_usd = producto.precio / rate if rate else 0
 
     app.precio_usd.value = f"{precio_usd:.2f}"
@@ -70,7 +68,7 @@ def add_producto(app, e):
         if stock < 0:
             raise ValueError("El stock no puede ser negativo")
 
-        app.producto_controller.create_producto(nombre, precio, stock)
+        app.producto_controller.add_producto(nombre, precio, stock)
         clear_form(app)
         load_productos(app)
 
@@ -173,23 +171,26 @@ def confirm_delete_producto(app, e):
 
     def delete_confirmed(e):
         app.page.dialog.open = False
-        delete_producto(app, e)
         app.page.update()
+        delete_producto(app, e)
 
     def cancel_delete(e):
         app.page.dialog.open = False
         app.page.update()
 
     app.page.dialog = ft.AlertDialog(
+        modal=True,
         title=ft.Text("Confirmar Eliminación"),
         content=ft.Text(f"¿Está seguro de que desea eliminar el producto '{app.selected_producto.nombre}'?"),
         actions=[
             ft.TextButton("Cancelar", on_click=cancel_delete),
             ft.ElevatedButton("Eliminar", on_click=delete_confirmed, style=ft.ButtonStyle(bgcolor=ft.Colors.RED_600))
-        ]
+        ],
+        actions_alignment=ft.MainAxisAlignment.END
     )
     app.page.dialog.open = True
     app.page.update()
+    app.page.add(app.page.dialog)
 
 def clear_form(app):
     """Clear the product form"""
@@ -221,8 +222,7 @@ def filter_productos(app, e):
 
     for producto in filtered_products:
         # Calculate USD price from VES price
-        exchange_service = ExchangeRateService()
-        rate = exchange_service.get_dollar_rate()
+        rate = app.exchange_rate_service.get_dollar_rate()
         precio_usd = producto.precio / rate if rate else 0
 
         app.productos_list.rows.append(
@@ -245,8 +245,7 @@ def update_precio_ves(app, e):
         precio_usd = float(app.precio_usd.value) if app.precio_usd.value else 0
         if precio_usd > 0:
             # Get exchange rate
-            exchange_service = ExchangeRateService()
-            rate = exchange_service.get_dollar_rate()
+            rate = app.exchange_rate_service.get_dollar_rate()
             if rate:
                 precio_ves = precio_usd * rate
                 app.precio.value = f"{precio_ves:.2f}"
