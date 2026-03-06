@@ -188,7 +188,7 @@ Este proyecto est&aacute; bajo la licencia MIT. Ver el archivo `LICENSE` para m&
 
 ## Agradecimientos
 
-| | |
+| |
 |:---|
 | Gracias por usar VentaEnterprise |
 | Contribuye al proyecto |
