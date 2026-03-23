@@ -196,6 +196,10 @@ Este proyecto est&aacute; bajo la licencia MIT. Ver el archivo `LICENSE` para m&
 
 ---
 
+![Python](https://img.shields.io/badge/Python-3776AB?style=for-the-badge&logo=python&logoColor=white)
+![SQLite](https://img.shields.io/badge/SQLite-003B57?style=for-the-badge&logo=sqlite&logoColor=white)
+![Flet](https://img.shields.io/badge/Flet-00897B?style=for-the-badge&logo=flutter&logoColor=white)
+
 <p align="center">
   <strong>VentaEnterprise &copy; 2026</strong>
 </p>
